@@ -38,7 +38,7 @@ impl<'f> Fork<'f> {
     pub(crate) fn seek(&self, count: usize) -> Option<String> {
         let start = self.peek.get();
         let end = start + count;
-        if end == self.input.len() {
+        if end >= self.input.len() {
             return None;
         }
         Some(self.input[start..end].iter().collect())
@@ -56,7 +56,7 @@ impl<'f> Fork<'f> {
                 break;
             }
         }
-        let end = self.peek.get() -  1;
+        let end = self.peek.get();
         self.reset_peek();
         self.input.windows(end).next().map(|chunk| chunk.iter()).unwrap_or_else(|| [].iter())
 
@@ -74,7 +74,7 @@ impl<'f> Fork<'f> {
                 self.peek.set(self.peek.get() + 1);
             }
         }
-        let end = self.peek.get() -  1;
+        let end = self.peek.get();
         self.reset_peek();
         self.input.windows(end).next().map(|chunk| chunk.iter()).unwrap_or_else(|| [].iter())
     }  
@@ -107,23 +107,31 @@ impl Muncher {
         self.next - 1
     }
 
-    pub(crate) fn reset_peek(&self) -> usize {
+    pub(crate) fn is_done(&self) -> bool {
+        self.next >= self.input.len()
+    }
+
+    /// Resets `Muncher.peek` to current `Muncher.next`
+    fn reset_peek(&self) -> usize {
         self.peek.set(self.next);
         self.peek.get()
     }
 
+    /// increments `Muncher.peek` by one
     fn adv_peek(&self) -> usize {
         let inc = self.peek.get();
         self.peek.set(inc + 1);
         inc
     }
 
+    /// Gets the char at `Muncher.peek` index then increments `Muncher.peek` by one
     pub(crate) fn peek(&self) -> Option<&char> {
-        self.input.get(self.adv_peek())
+        let res = self.input.get(self.peek.get());
+        self.adv_peek();
+        res
     }
-
+    
     pub(crate) fn seek(&self, count: usize) -> Option<String> {
-        println!("{}", count);
         let start = self.peek.get();
         self.peek.set(start + count);
         if self.peek.get() + 1 == self.input.len() {
@@ -138,7 +146,7 @@ impl Muncher {
         P: Fn(&char) -> bool,
     {
         let start = self.reset_peek();
-        for ch in self.input.iter() {
+        for ch in self.input[start..].iter() {
             if pred(ch) && self.peek.get() != self.input.len() {
                 self.adv_peek();
             } else {
@@ -148,7 +156,7 @@ impl Muncher {
                 break;
             }
         }
-        let end = self.peek.get() -  1;
+        let end = self.peek.get();
         self.peek.set(end);
         self.input[start..end].iter()
     }
@@ -159,7 +167,8 @@ impl Muncher {
         P: Fn(&char) -> bool,
     {
         let start = self.reset_peek();
-        for ch in self.input.iter() {
+        println!("start {} {:?}", start, self.input.get(start));
+        for ch in self.input[start..].iter() {
             if pred(ch) {
                 if self.peek.get() == self.input.len() {
                     self.peek.set(self.peek.get() + 1);
@@ -169,18 +178,21 @@ impl Muncher {
                 self.adv_peek();
             }
         }
-        let end = self.peek.get() - 1;
+        let end = self.peek.get();
+        println!("start {} {:?}", end, self.input.get(end));
         self.peek.set(end);
         self.input[start..end].iter()
     } 
 
     pub(crate) fn eat(&mut self) -> Option<char> {
+        let res = self.input.get(self.next).copied();
         self.next += 1;
         self.peek.set(self.next);
-        self.input.get(self.next - 1).copied()
+        res
     }
 
     pub(crate) fn eat_ws(&mut self) -> bool {
+        self.reset_peek();
         if self.peek() == Some(&' ') {
             self.eat().is_some()
         } else {
@@ -189,6 +201,7 @@ impl Muncher {
     }
 
     pub(crate) fn eat_eol(&mut self) -> bool {
+        self.reset_peek();
         let next = self.peek();
         if next == Some(&'\n') {
             self.eat().is_some()
@@ -201,6 +214,7 @@ impl Muncher {
     }
 
     pub(crate) fn eat_eq(&mut self) -> bool {
+        self.reset_peek();
         if self.peek() == Some(&'=') {
             let res = self.eat().is_some();
             self.eat_ws();
@@ -211,6 +225,7 @@ impl Muncher {
     }
 
     pub(crate) fn eat_open_brc(&mut self) -> bool {
+        self.reset_peek();
         if self.peek() == Some(&'[') {
             self.eat().is_some()
         } else {
@@ -219,6 +234,7 @@ impl Muncher {
     }
 
     pub(crate) fn eat_close_brc(&mut self) -> bool {
+        self.reset_peek();
         if self.peek() == Some(&']') {
             self.eat().is_some()
         } else {
@@ -226,7 +242,26 @@ impl Muncher {
         }
     }
 
+    pub(crate) fn eat_open_curly(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&'{') {
+            self.eat().is_some()
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn eat_close_curly(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&'}') {
+            self.eat().is_some()
+        } else {
+            false
+        }
+    }
+
     pub(crate) fn eat_quote(&mut self) -> bool {
+        self.reset_peek();
         if self.peek() == Some(&'"') {
             self.eat().is_some()
         } else {
@@ -240,7 +275,7 @@ impl Muncher {
         P: Fn(&char) -> bool,
     {
         let start = self.next;
-        for ch in self.input.iter() {
+        for ch in self.input[start..].iter() {
             if pred(ch) && self.next != self.input.len() {
                 self.next += 1;
             } else {
@@ -250,8 +285,9 @@ impl Muncher {
                 break;
             }
         }
-        let end = self.next - 1;
+        let end = self.next;
         self.peek.set(end);
+        self.next = end;
         self.input[start..end].iter().copied().collect::<Vec<_>>().into_iter()
     }
 
@@ -261,19 +297,20 @@ impl Muncher {
         P: FnMut(&char) -> bool,
     {
         let start = self.next;
-        for ch in self.input.iter() {
+        for ch in self.input[start..].iter() {
             if pred(ch) {
                 if self.next == self.input.len() {
-                    self.next += 1;
+                    return vec![].into_iter()
                 }
                 break;
             } else {
                 self.next += 1;
             }
         }
-        let end = self.next - 1;
+        let end = self.next;
         self.peek.set(end);
         self.next = end;
+        println!("eat until ({}, {}) {:?}", start, end, &self.input[start..end]);
         self.input[start..end].iter().copied().collect::<Vec<_>>().into_iter()
     } 
 }
@@ -383,8 +420,10 @@ mod tests {
         let input = "hello\nworld";
         let mut m = Muncher::new(input);
 
+        // this will advance the cursor.
+        // this may not further allocat?
         m.eat_until(|c| c == &'\n');
-        println!("{:?}", m.peek());
+        assert_eq!(m.peek(), Some(&'\n'));
         assert!(m.eat_eol());
     }
 }

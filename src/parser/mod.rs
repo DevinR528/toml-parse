@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use chrono::{Date, Datelike, DateTime, NaiveDateTime, NaiveDate, NaiveTime};
 
 mod err;
@@ -11,6 +13,7 @@ use token::{cmp_tokens, Muncher};
 const EOL: &[char] = &[ '\n', '\r' ];
 const BOOL: &[char] = &[ 't', 'f' ];
 const KEY_END: &[char] = &[ '\n', '\r', ' ', ',', '='];
+const DATE_LIKE: &[char] = &[ '-', '/', ' ', ':', 'T'];
 const SPACE_EQ: &[char] = &[ ' ', '=' ];
 
 #[derive(Debug, Clone)]
@@ -25,16 +28,11 @@ impl Parse for Heading {
         let mut header = String::default();
         let mut seg = Vec::default();
         for ch in muncher.eat_until(|c| c == &']') {
-            if ch == '.' {
-                seg.push(header.clone());
-            }
             header.push(ch);
         }
-        // remove last closing brace;
-        assert!(muncher.eat_close_brc());
-        println!("{:?}", muncher);
-        assert!(muncher.eat_eol());
-
+        if header.contains('.') {
+            seg = header.split('.').map(|s| s.to_string()).collect();
+        }
         Ok(Self {
             header,
             seg,
@@ -49,11 +47,16 @@ struct KvPairs {
 }
 
 impl KvPairs {
-    fn parse_while(muncher: &mut Muncher) -> TomlResult<Option<(String, Value)>> {
-        let mut key = muncher.eat_until(|c| cmp_tokens(c, KEY_END)).collect::<String>();
-        if key.starts_with('"') {
-            key.remove(0);
+    fn parse_pairs(muncher: &mut Muncher) -> TomlResult<Option<(String, Value)>> {
+        if muncher.is_done() {
+            return Ok(None);
         }
+
+        let mut key = muncher.eat_until(|c| {
+            println!("in key {:?}", c);
+            cmp_tokens(c, KEY_END)
+        }).collect::<String>();
+
         let val: TomlResult<Value>;
         let fork = muncher.fork();
         if fork.seek(3).map(|s| s.contains('=')) == Some(true)  {
@@ -63,6 +66,9 @@ impl KvPairs {
             muncher.eat_eq();
             val = match muncher.peek() {
                 Some('"') => Value::parse_str(muncher),
+                Some('t') | Some('f') => Value::parse_bool(muncher),
+                Some('[') => Value::parse_array(muncher),
+                Some('{') => Value::parse_obj(muncher),
                 None => Ok(Value::Eof),
                 _ => {
                     let msg = "invalid token in key value pairs";
@@ -98,7 +104,7 @@ impl Parse for KvPairs {
     fn parse(muncher: &mut Muncher) -> Result<Vec<KvPairs>, ParseTomlError> {
         let mut pairs = Vec::default();
         loop {
-            let pair = KvPairs::parse_while(muncher)?;
+            let pair = KvPairs::parse_pairs(muncher)?;
             if let Some((key, val)) = pair {
                 let key = if key.is_empty() {
                     None
@@ -125,9 +131,14 @@ impl Parse for Table {
     fn parse(muncher: &mut Muncher) -> Result<Table, ParseTomlError> {
         let _open_brace = muncher.eat();
         let header = Heading::parse(muncher)?;
-        println!("{:#?}", header);
-        let _close_brace = muncher.eat();
+
+        // remove last closing brace;
+        assert!(muncher.eat_close_brc());
+        // and new line before items
+        assert!(muncher.eat_eol());
+
         let pairs = KvPairs::parse(muncher)?;
+
         Ok(Self {
             header,
             pairs,
@@ -150,7 +161,6 @@ pub enum Value {
 
 impl Value {
     fn parse_str(muncher: &mut Muncher) -> TomlResult<Self> {
-        println!("parse str");
         let mut pair = 0;
         let mut s = muncher.eat_until(|c| {
                 if c == &'"'{
@@ -165,14 +175,11 @@ impl Value {
         if s.starts_with('"') {
             s.remove(0);
         }
-        assert!(muncher.eat_quote());
-        let end = muncher.peek();
-        if end == Some(&'\n') || end == Some(&'\r') {
-            assert!(muncher.eat_eol());
+        if muncher.eat_quote() {
             Ok(Self::StrLit(s))
         } else {
             let msg = "invalid token in value";
-            let tkn = if let Some(peek) = end {
+            let tkn = if let Some(peek) = muncher.peek() {
                 format!("{:?}", peek)
             } else {
                 "no token".into()
@@ -182,8 +189,48 @@ impl Value {
     }
 
     fn parse_array(muncher: &mut Muncher) -> TomlResult<Self> {
-        let s = muncher.eat_until(|c| c == &']').collect::<String>();
-        let _new_line = muncher.eat();
+        assert!(muncher.eat_open_brc());
+        let items_raw = muncher.eat_until(|c| c == &']').collect::<String>();
+        let mut items = Vec::default();
+        for s in items_raw.split(',') {
+            let raw = s.trim();
+            let mut mini_munch = Muncher::new(raw);
+            match raw.chars().next() {
+                Some('"') => items.push(Value::parse_str(&mut mini_munch)?),
+                Some('[') => items.push(Value::parse_array(&mut mini_munch)?),
+                Some('{') => items.push(Value::parse_obj(&mut mini_munch)?),
+                Some('t') | Some('f') => items.push(Value::parse_bool(&mut mini_munch)?),
+                Some(digi) if digi.is_numeric() => {
+                    if raw.contains(DATE_LIKE) {
+                        items.push(Value::Date(NaiveDateTime::from_str(raw)?))
+                    } else {
+                        if raw.contains('.') {
+                            items.push(Value::Float(raw.parse()?))
+                        } else {
+                            items.push(Value::Int(raw.parse()?))
+                        }
+                    }
+                },
+                Some(invalid) => {
+                    let msg = "invalid token in value";
+                    let tkn = format!("{:?}", invalid);
+                    return Err(
+                        ParseTomlError::new(
+                            msg.into(),
+                            TomlErrorKind::UnexpectedToken(tkn))
+                    );
+                },
+                None => {
+                    println!("DONE ARRAY {:?}", items);
+                },
+            }
+        }
+        assert!(muncher.eat_close_brc());
+        Ok(Value::Array(items))
+    }
+
+    fn parse_bool(muncher: &mut Muncher) -> TomlResult<Self> {
+        let s = muncher.eat_until(|c| cmp_tokens(c, EOL)).collect::<String>();
         if s == "true" {
             Ok(Value::Bool(true))
         } else if s == "false" {
@@ -195,9 +242,8 @@ impl Value {
         }
     }
 
-    fn parse_bool(muncher: &mut Muncher) -> TomlResult<Self> {
-        let s = muncher.eat_until(|c| cmp_tokens(c, EOL)).collect::<String>();
-        let _new_line = muncher.eat();
+    fn parse_obj(muncher: &mut Muncher) -> TomlResult<Self> {
+        let s = muncher.eat_until(|c| c == &'}').collect::<String>();
         if s == "true" {
             Ok(Value::Bool(true))
         } else if s == "false" {
@@ -230,7 +276,6 @@ impl Parse for Value {
 mod tests {
     use super::*;
 
-    #[allow(clippy::eq_op)]
     #[test]
     fn kv_table() {
         let input =
@@ -241,6 +286,30 @@ b = "b"
         let mut muncher = Muncher::new(input);
         let value = Value::parse(&mut muncher).expect("Parse Failed");
 
+        if let Value::Table(table) = value {
+            assert_eq!(table.header.header, "hello");
+            assert_eq!(table.pairs.len(), 2);
+        } else {
+            panic!("no table parsed")
+        }
+    }
+
+    #[test]
+    fn seg_header() {
+        let input =
+r#"[hello.world]
+a = "a"
+b = "b"
+"#;
+        let mut muncher = Muncher::new(input);
+        let value = Value::parse(&mut muncher).expect("Parse Failed");
         println!("{:#?}", value);
+        if let Value::Table(table) = value {
+            assert_eq!(table.header.header, "hello.world");
+            assert_eq!(table.header.seg.len(), 2);
+            assert_eq!(table.pairs.len(), 2);
+        } else {
+            panic!("no table parsed")
+        }
     }
 }
