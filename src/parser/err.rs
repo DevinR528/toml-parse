@@ -1,10 +1,15 @@
 use std::io;
+use std::num::{ParseFloatError, ParseIntError};
+
+use chrono::format::ParseError as ChronoParseError;
 
 pub type TomlResult<T> = Result<T, ParseTomlError>;
 
 #[derive(PartialEq)]
 pub enum TomlErrorKind {
     UnexpectedToken(String),
+    DateError,
+    NumberError,
     InternalParseError(String),
 }
 
@@ -23,7 +28,7 @@ impl ParseTomlError {
     }
 }
 
-impl std::convert::From<io::Error> for ParseTomlError {
+impl From<io::Error> for ParseTomlError {
     fn from(e: io::Error) -> ParseTomlError {
         let msg = e.to_string();
         ParseTomlError::new(
@@ -33,12 +38,30 @@ impl std::convert::From<io::Error> for ParseTomlError {
     }
 }
 
-impl std::convert::From<ParseTomlError> for io::Error {
+impl From<ParseTomlError> for io::Error {
     fn from(e: ParseTomlError) -> io::Error {
-        match e.kind {
-            TomlErrorKind::InternalParseError(info) => io::Error::new(io::ErrorKind::Other, info),
-            TomlErrorKind::UnexpectedToken(info) => io::Error::new(io::ErrorKind::Other, info),
-        }
+        io::Error::new(io::ErrorKind::Other, e.info)
+    }
+}
+
+impl From<chrono::format::ParseError> for ParseTomlError {
+    fn from(e: ChronoParseError) -> ParseTomlError {
+        let msg = e.to_string();
+        ParseTomlError::new(msg, TomlErrorKind::DateError)
+    }
+}
+
+impl From<ParseFloatError> for ParseTomlError {
+    fn from(e: ParseFloatError) -> ParseTomlError {
+        let msg = e.to_string();
+        ParseTomlError::new(msg, TomlErrorKind::NumberError)
+    }
+}
+
+impl From<ParseIntError> for ParseTomlError {
+    fn from(e: ParseIntError) -> ParseTomlError {
+        let msg = e.to_string();
+        ParseTomlError::new(msg, TomlErrorKind::NumberError)
     }
 }
 
@@ -59,6 +82,8 @@ impl std::fmt::Display for ParseTomlError {
         let span = match &self.kind {
             TomlErrorKind::InternalParseError(ref span) => span,
             TomlErrorKind::UnexpectedToken(ref span) => span,
+            TomlErrorKind::DateError => "an invalid date-time",
+            TomlErrorKind::NumberError => "an invalid number",
         };
         write!(f, "{}, found {:?}", self.info, span)
     }

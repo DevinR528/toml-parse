@@ -17,10 +17,10 @@ pub struct Fork<'a> {
 
 impl<'f> Fork<'f> {
     pub(crate) fn new(input: &'f [char]) -> Self {
-        Self { 
+        Self {
             input,
             peek: Cell::new(0),
-         }
+        }
     }
 
     pub(crate) fn reset_peek(&self) {
@@ -45,7 +45,7 @@ impl<'f> Fork<'f> {
     }
 
     /// Peek tokens while predicate is true.
-    pub(crate) fn peek_while<P>(&self, pred: P) -> impl Iterator<Item=&char>
+    pub(crate) fn peek_while<P>(&self, pred: P) -> impl Iterator<Item = &char>
     where
         P: Fn(&char) -> bool,
     {
@@ -58,12 +58,15 @@ impl<'f> Fork<'f> {
         }
         let end = self.peek.get();
         self.reset_peek();
-        self.input.windows(end).next().map(|chunk| chunk.iter()).unwrap_or_else(|| [].iter())
-
+        self.input
+            .windows(end)
+            .next()
+            .map(|chunk| chunk.iter())
+            .unwrap_or_else(|| [].iter())
     }
 
     /// Peek tokens until given predicate is true.
-    pub(crate) fn peek_until<P>(&self, pred: P) -> impl Iterator<Item=&char>
+    pub(crate) fn peek_until<P>(&self, pred: P) -> impl Iterator<Item = &char>
     where
         P: Fn(&char) -> bool,
     {
@@ -76,8 +79,12 @@ impl<'f> Fork<'f> {
         }
         let end = self.peek.get();
         self.reset_peek();
-        self.input.windows(end).next().map(|chunk| chunk.iter()).unwrap_or_else(|| [].iter())
-    }  
+        self.input
+            .windows(end)
+            .next()
+            .map(|chunk| chunk.iter())
+            .unwrap_or_else(|| [].iter())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -89,11 +96,11 @@ pub struct Muncher {
 
 impl Muncher {
     pub(crate) fn new(input: &str) -> Self {
-        Self { 
+        Self {
             input: input.chars().collect(),
             peek: Cell::new(0),
             next: 0,
-         }
+        }
     }
 
     pub(crate) fn fork(&self) -> Fork {
@@ -112,7 +119,7 @@ impl Muncher {
     }
 
     /// Resets `Muncher.peek` to current `Muncher.next`
-    fn reset_peek(&self) -> usize {
+    pub(crate) fn reset_peek(&self) -> usize {
         self.peek.set(self.next);
         self.peek.get()
     }
@@ -130,7 +137,7 @@ impl Muncher {
         self.adv_peek();
         res
     }
-    
+
     pub(crate) fn seek(&self, count: usize) -> Option<String> {
         let start = self.peek.get();
         self.peek.set(start + count);
@@ -139,50 +146,6 @@ impl Muncher {
         }
         Some(self.input[start..self.peek.get()].iter().collect())
     }
-
-    /// Peek tokens while predicate is true.
-    pub(crate) fn peek_while<P>(&self, pred: P) -> impl Iterator<Item=&char>
-    where
-        P: Fn(&char) -> bool,
-    {
-        let start = self.reset_peek();
-        for ch in self.input[start..].iter() {
-            if pred(ch) && self.peek.get() != self.input.len() {
-                self.adv_peek();
-            } else {
-                if self.peek.get() == self.input.len() {
-                    self.peek.set(self.peek.get() + 1);
-                }
-                break;
-            }
-        }
-        let end = self.peek.get();
-        self.peek.set(end);
-        self.input[start..end].iter()
-    }
-
-    /// Peek tokens until given predicate is true.
-    pub(crate) fn peek_until<P>(&self, pred: P) -> impl Iterator<Item=&char>
-    where
-        P: Fn(&char) -> bool,
-    {
-        let start = self.reset_peek();
-        println!("start {} {:?}", start, self.input.get(start));
-        for ch in self.input[start..].iter() {
-            if pred(ch) {
-                if self.peek.get() == self.input.len() {
-                    self.peek.set(self.peek.get() + 1);
-                }
-                break;
-            } else {
-                self.adv_peek();
-            }
-        }
-        let end = self.peek.get();
-        println!("start {} {:?}", end, self.input.get(end));
-        self.peek.set(end);
-        self.input[start..end].iter()
-    } 
 
     pub(crate) fn eat(&mut self) -> Option<char> {
         let res = self.input.get(self.next).copied();
@@ -269,39 +232,14 @@ impl Muncher {
         }
     }
 
-    /// Eat tokens while predicate is true.
-    pub(crate) fn eat_while<P>(&mut self, pred: P) -> impl Iterator<Item=char>
-    where
-        P: Fn(&char) -> bool,
-    {
-        let start = self.next;
-        for ch in self.input[start..].iter() {
-            if pred(ch) && self.next != self.input.len() {
-                self.next += 1;
-            } else {
-                if self.next == self.input.len() {
-                    self.next += 1;
-                }
-                break;
-            }
-        }
-        let end = self.next;
-        self.peek.set(end);
-        self.next = end;
-        self.input[start..end].iter().copied().collect::<Vec<_>>().into_iter()
-    }
-
     /// Eat tokens until given predicate is true.
-    pub(crate) fn eat_until<P>(&mut self, mut pred: P) -> impl Iterator<Item=char>
+    pub(crate) fn eat_until<P>(&mut self, mut pred: P) -> impl Iterator<Item = char>
     where
         P: FnMut(&char) -> bool,
     {
         let start = self.next;
         for ch in self.input[start..].iter() {
             if pred(ch) {
-                if self.next == self.input.len() {
-                    return vec![].into_iter()
-                }
                 break;
             } else {
                 self.next += 1;
@@ -310,11 +248,19 @@ impl Muncher {
         let end = self.next;
         self.peek.set(end);
         self.next = end;
-        println!("eat until ({}, {}) {:?}", start, end, &self.input[start..end]);
-        self.input[start..end].iter().copied().collect::<Vec<_>>().into_iter()
-    } 
+        // println!(
+        //     "eat until ({}, {}) {:?}",
+        //     start,
+        //     end,
+        //     &self.input[start..end]
+        // );
+        self.input[start..end]
+            .iter()
+            .copied()
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct TomlTokenizer {
@@ -356,12 +302,12 @@ mod tests {
 
         assert_eq!(m.eat(), Some('h'));
 
-        for ch in m.eat_while(|c| !c.is_whitespace()) {
+        for ch in m.eat_until(|c| c.is_whitespace()) {
             assert!(!ch.is_whitespace());
         }
         assert_eq!(m.peek(), Some(&' '));
         assert_eq!(m.eat(), Some(' '));
-        for ch in m.eat_while(|c| !c.is_whitespace()) {
+        for ch in m.eat_until(|c| c.is_whitespace()) {
             assert!(!ch.is_whitespace());
         }
         assert!(m.eat().is_none());
@@ -380,25 +326,6 @@ mod tests {
         while let Some(ch) = m.eat() {
             idx += 1;
             assert_eq!(m.peek(), chars.get(idx + 1));
-        }
-    }
-
-    #[test]
-    fn peek_while_muncher() {
-        let input = "hello world";
-        let chars = input.to_string().chars().collect::<Vec<char>>();
-        let mut m = Muncher::new(input);
-
-        assert_eq!(m.eat(), Some('h'));
-
-        for ch in m.peek_until(|c| c.is_whitespace()) {
-            assert!(!ch.is_whitespace());
-        }
-
-        assert_eq!(m.peek(), Some(&' '));
-
-        for ch in m.peek_until(|c| c.is_whitespace()) {
-            assert!(!ch.is_whitespace());
         }
     }
 
