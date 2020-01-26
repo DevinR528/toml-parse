@@ -9,71 +9,95 @@ mod token;
 mod value;
 mod table;
 
-use err::{ParseTomlError, TomlErrorKind, TomlResult};
+pub use err::{ParseTomlError, TomlErrorKind, TomlResult};
 use parse::Parse;
 use token::{cmp_tokens, Muncher};
-use value::Value;
+pub use value::Value;
+pub use table::{Heading, KvPairs, InTable, Table};
 
 pub(crate) const EOL: &[char] = &['\n', '\r'];
 pub(crate) const DATE_END: &[char] = &['\n', '\r', ',', ']' ];
 pub(crate) const NUM_END: &[char] = &['\n', '\r', ',', ']', ' ' ];
 pub(crate) const ARRAY_ITEMS: &[char] = &[ ',', ']' ];
-pub(crate) const OBJ_ITEMS: &[char] = &[ ',', ' ', '}' ];
-pub(crate) const BOOL: &[char] = &['t', 'f'];
-pub(crate) const KEY_END: &[char] = &['\n', '\r', ' ', ',', '='];
+pub(crate) const KEY_END: &[char] = &[ ' ', ',', '='];
 pub(crate) const DATE_LIKE: &[char] = &['-', '/', ':', 'T'];
-pub(crate) const SPACE_EQ: &[char] = &[' ', '='];
 
+pub struct TomlFile {
+    items: Vec<Value>,
+}
+
+impl Parse for TomlFile {
+    type Item = TomlFile;
+    fn parse(muncher: &mut Muncher) -> TomlResult<Self> {
+        let mut parsed = Vec::default();
+        while let Ok(value) = Value::parse(muncher) {
+            if value == Value::Eof { break };
+            parsed.push(value);
+        }
+        Ok(TomlFile { items: parsed, }) 
+    }
+}
+
+pub struct Toml(TomlFile);
+
+impl Toml {
+    pub fn parse(input: &str) -> TomlResult<Toml> {
+        let mut muncher = Muncher::new(input);
+        <Toml as Parse>::parse(&mut muncher)
+    }
+
+    /// The number of items found in a parsed toml file.
+    pub fn len(&self) -> usize {
+        self.0.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn get_table(&self, heading: &str) -> Option<table::Table> {
+        None
+    }
+
+    pub fn get_value(&self, key: &str) -> Option<Value> {
+        None
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Value> {
+        self.0.items.iter()
+    }
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Value> {
+        self.0.items.iter_mut()
+    }
+}
+
+impl Parse for Toml {
+    type Item = Toml;
+    fn parse(muncher: &mut Muncher) -> TomlResult<Self> {
+        Ok(Toml(TomlFile::parse(muncher)?))
+    }
+}
+
+impl IntoIterator for Toml {
+    type Item = Value;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.items.into_iter()
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use std::fs::read_to_string;
     use super::*;
-    
     #[test]
-    fn kv_table() {
-        let input = r#"[hello]
-a = "a"
-b = "b"
-"#;
-        let mut muncher = Muncher::new(input);
-        let value = Value::parse(&mut muncher).expect("Parse Failed");
-
-        if let Value::Table(table) = value {
-            assert_eq!(table.header(), "hello");
-            assert_eq!(table.item_len(), 2);
-        } else {
-            panic!("no table parsed")
-        }
-    }
-
-    #[test]
-    fn seg_header() {
-        let input = r#"[hello.world]
-a = "a"
-b = "b"
-"#;
-        let mut muncher = Muncher::new(input);
-        let value = Value::parse(&mut muncher).expect("Parse Failed");
-        println!("{:#?}", value);
-        if let Value::Table(table) = value {
-            assert_eq!(table.header(), "hello.world");
-            assert_eq!(table.seg_len(), 2);
-            assert_eq!(table.item_len(), 2);
-        } else {
-            panic!("no table parsed")
-        }
-    }
-
-    #[test]
-    fn file_parser() {
+    fn toml_parser() {
+        // ftop.toml is 7 items long
         let input = read_to_string("examp/ftop.toml").expect("file read failed");
-
-        let mut parsed = Vec::default();
-        let mut muncher = Muncher::new(&input);
-        while let Ok(value) = Value::parse(&mut muncher) {
-            println!("{:#?}", value);
-            parsed.push(value);
+        let parsed = Toml::parse(&input).expect("parse failed");
+        assert_eq!(parsed.len(), 7);
+        for item in parsed {
+            println!("{:#?}", item);
         }
     }
 }

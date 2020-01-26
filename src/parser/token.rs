@@ -1,12 +1,10 @@
 use std::cell::Cell;
 
-use super::err::ParseTomlError;
 use super::Value;
+use super::{EOL};
 
 pub fn cmp_tokens(ch: &char, chars: &[char]) -> bool {
-    let res = chars.iter().any(|c| c == ch);
-    println!("{} {:?}", res, ch);
-    res
+    chars.iter().any(|c| c == ch)
 }
 
 #[derive(Debug, Clone)]
@@ -16,14 +14,14 @@ pub struct Fork<'a> {
 }
 
 impl<'f> Fork<'f> {
-    pub(crate) fn new(input: &'f [char]) -> Self {
+    fn new(input: &'f [char]) -> Self {
         Self {
             input,
             peek: Cell::new(0),
         }
     }
 
-    pub(crate) fn reset_peek(&self) {
+    fn reset_peek(&self) {
         self.peek.set(0);
     }
 
@@ -42,48 +40,6 @@ impl<'f> Fork<'f> {
             return None;
         }
         Some(self.input[start..end].iter().collect())
-    }
-
-    /// Peek tokens while predicate is true.
-    pub(crate) fn peek_while<P>(&self, pred: P) -> impl Iterator<Item = &char>
-    where
-        P: Fn(&char) -> bool,
-    {
-        for ch in self.input.iter() {
-            if pred(ch) && self.peek.get() != self.input.len() {
-                self.peek.set(self.peek.get() + 1);
-            } else {
-                break;
-            }
-        }
-        let end = self.peek.get();
-        self.reset_peek();
-        self.input
-            .windows(end)
-            .next()
-            .map(|chunk| chunk.iter())
-            .unwrap_or_else(|| [].iter())
-    }
-
-    /// Peek tokens until given predicate is true.
-    pub(crate) fn peek_until<P>(&self, pred: P) -> impl Iterator<Item = &char>
-    where
-        P: Fn(&char) -> bool,
-    {
-        for ch in self.input.iter() {
-            if pred(ch) {
-                break;
-            } else {
-                self.peek.set(self.peek.get() + 1);
-            }
-        }
-        let end = self.peek.get();
-        self.reset_peek();
-        self.input
-            .windows(end)
-            .next()
-            .map(|chunk| chunk.iter())
-            .unwrap_or_else(|| [].iter())
     }
 }
 
@@ -111,11 +67,29 @@ impl Muncher {
     }
 
     pub(crate) fn position(&self) -> usize {
-        self.next - 1
+        self.next
     }
 
     pub(crate) fn is_done(&self) -> bool {
         self.next >= self.input.len()
+    }
+
+    pub(crate) fn cursor_position(&self) -> (usize, usize) {
+        let mut col = 1;
+        let mut ln = 1;
+
+        for (i, ch) in self.input.iter().enumerate() {
+            if self.next + 1 == i {
+                break;
+            }
+            if EOL.iter().any(|c| c == ch) {
+                ln = 1;
+                col += 1;
+            } else {
+                ln += 1;
+            }
+        }
+        (ln, col)
     }
 
     /// Resets `Muncher.peek` to current `Muncher.next`
@@ -136,6 +110,25 @@ impl Muncher {
         let res = self.input.get(self.peek.get());
         self.adv_peek();
         res
+    }
+
+    /// Eat tokens until given predicate is true.
+    pub(crate) fn peek_until<P>(&self, mut pred: P) -> impl Iterator<Item = &char>
+    where
+        P: FnMut(&char) -> bool,
+    {
+        let start = self.peek.get();
+        for ch in self.input[start..].iter() {
+            if pred(ch) {
+                break;
+            } else {
+                self.peek.set(self.peek.get() + 1);
+            }
+        }
+        let end = self.next;
+        self.peek.set(end);
+        self.input[start..end]
+            .iter()
     }
 
     pub(crate) fn seek(&self, count: usize) -> Option<String> {
@@ -232,6 +225,15 @@ impl Muncher {
         }
     }
 
+    pub(crate) fn eat_comma(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&',') {
+            self.eat().is_some()
+        } else {
+            false
+        }
+    }
+
     /// Eat tokens until given predicate is true.
     pub(crate) fn eat_until<P>(&mut self, mut pred: P) -> impl Iterator<Item = char>
     where
@@ -259,21 +261,6 @@ impl Muncher {
             .copied()
             .collect::<Vec<_>>()
             .into_iter()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TomlTokenizer {
-    pub tables: Vec<Value>,
-    inner: Muncher,
-}
-
-impl TomlTokenizer {
-    pub fn new(input: &str) -> TomlTokenizer {
-        Self {
-            inner: Muncher::new(input),
-            tables: Vec::default(),
-        }
     }
 }
 

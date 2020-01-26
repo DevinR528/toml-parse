@@ -1,14 +1,10 @@
-use std::str::FromStr;
-
-use chrono::{Date, DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime};
-
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
 use super::parse::Parse;
 use super::token::{cmp_tokens, Muncher};
 use super::value::Value;
 use super::{KEY_END, EOL, ARRAY_ITEMS, DATE_END};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
     header: String,
     seg: Vec<String>,
@@ -29,10 +25,23 @@ impl Parse for Heading {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct KvPairs {
     key: Option<String>,
     val: Value,
+}
+
+impl KvPairs {
+    fn key_match(&self, key: &str) -> bool {
+        self.key.as_ref().map(|k| k == key) == Some(true)
+    }
+
+    pub fn key(&self) -> Option<&str> {
+        self.key.as_deref()
+    }
+    pub fn value(&self) -> &Value {
+        &self.val
+    }
 }
 
 impl KvPairs {
@@ -41,18 +50,15 @@ impl KvPairs {
             return Ok(None);
         }
 
-        if muncher.peek() == Some(&'#') {
+        let peeked = muncher.peek();
+        if peeked == Some(&'#') {
             let cmt = muncher.eat_until(|c| cmp_tokens(c, EOL)).collect();
             assert!(muncher.eat_eol());
             return Ok(Some(("".into(), Value::Comment(cmt))));
         }
 
-        let key = muncher
-            .eat_until(|c| {
-                println!("in key {:?}", c);
-                cmp_tokens(c, KEY_END)
-            })
-            .collect::<String>();
+        let key = muncher.eat_until(|c| cmp_tokens(c, KEY_END))
+                .collect::<String>();
 
         let val: TomlResult<Value>;
         let fork = muncher.fork();
@@ -66,18 +72,19 @@ impl KvPairs {
                 Some('"') => Value::parse_str(muncher),
                 Some('t') | Some('f') => Value::parse_bool(muncher),
                 Some('[') => Value::parse_array(muncher),
-                Some('{') => Value::parse_obj(muncher),
+                Some('{') => Ok(Value::InlineTable(InTable::parse(muncher)?)),
                 None => Ok(Value::Eof),
                 _ => {
                     let msg = "invalid token in key value pairs";
                     let tkn = if let Some(peek) = muncher.peek() {
-                        format!("{:?}", peek)
+                        format!("{:#?}", peek)
                     } else {
                         "no token".into()
                     };
+                    let (ln, col) = muncher.cursor_position();
                     Err(ParseTomlError::new(
                         msg.into(),
-                        TomlErrorKind::UnexpectedToken(tkn),
+                        TomlErrorKind::UnexpectedToken { tkn, ln, col },
                     ))
                 }
             }
@@ -90,28 +97,30 @@ impl KvPairs {
             } else {
                 "no token".into()
             };
+            let (ln, col) = muncher.cursor_position();
             val = Err(ParseTomlError::new(
                 msg.into(),
-                TomlErrorKind::UnexpectedToken(tkn),
+                TomlErrorKind::UnexpectedToken { tkn, ln, col },
             ));
         }
 
         if let Ok(Value::Eof) = val {
             return Ok(None);
         }
-        println!("{:?} {:?}", key, val);
+        // println!("{:?} {:?}", key, val);
         Ok(Some((key, val?)))
     }
 }
 
 impl Parse for KvPairs {
     type Item = Vec<KvPairs>;
-    fn parse(muncher: &mut Muncher) -> Result<Vec<KvPairs>, ParseTomlError> {
+    fn parse(muncher: &mut Muncher) -> TomlResult<Vec<KvPairs>> {
         let mut pairs = Vec::default();
         loop {
             if muncher.peek() == Some(&'\n') {
                 break;
             }
+            muncher.reset_peek();
             let pair = KvPairs::parse_pairs(muncher)?;
             if let Some((key, val)) = pair {
                 let key = if key.is_empty() { None } else { Some(key) };
@@ -126,7 +135,7 @@ impl Parse for KvPairs {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Table {
     header: Heading,
     pairs: Vec<KvPairs>,
@@ -152,7 +161,7 @@ impl Table {
 
 impl Parse for Table {
     type Item = Table;
-    fn parse(muncher: &mut Muncher) -> Result<Table, ParseTomlError> {
+    fn parse(muncher: &mut Muncher) -> TomlResult<Table> {
         assert!(muncher.eat_open_brc());
         let header = Heading::parse(muncher)?;
         // remove last closing brace;
@@ -161,8 +170,64 @@ impl Parse for Table {
         assert!(muncher.eat_eol());
         let pairs = KvPairs::parse(muncher)?;
         // TODO this may not always be needed
-        assert!(muncher.eat_eol());
+        muncher.eat_eol();
 
         Ok(Self { header, pairs })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct InTable {
+    pairs: Vec<KvPairs>,
+}
+
+impl InTable {
+    pub fn len(&self) -> usize {
+        self.pairs.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    pub fn get(&self, key: &str) -> Option<&KvPairs> {
+        self.pairs.iter().find(|pair| {
+            pair.key_match(key)
+        })
+    }
+}
+
+impl Parse for InTable {
+    type Item = InTable;
+    fn parse(muncher: &mut Muncher) -> TomlResult<InTable> {
+        assert!(muncher.eat_open_curly());
+        muncher.eat_ws();
+
+        let mut pairs = Vec::default();
+        loop {
+
+            if muncher.peek() == Some(&'}') {
+                break;
+            }
+            muncher.reset_peek();
+
+            let pair = KvPairs::parse_pairs(muncher)?;
+
+            if let Some((key, val)) = pair {
+                let key = if key.is_empty() { None } else { Some(key) };
+                pairs.push(KvPairs { key, val });
+                // remove optional comma
+                muncher.eat_comma();
+                // remove new line after each pair
+                muncher.eat_ws();
+            } else {
+                break;
+            }
+        }
+        // remove optional comma
+        muncher.eat_comma();
+        // remove new line after each pair
+        muncher.eat_ws();
+        assert!(muncher.eat_close_curly());
+
+        Ok(InTable { pairs, })
     }
 }

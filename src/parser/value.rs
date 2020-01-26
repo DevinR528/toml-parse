@@ -5,11 +5,11 @@ use chrono::{Date, DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime};
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
 use super::parse::Parse;
 use super::token::{cmp_tokens, Muncher};
-use super::table::{Table, KvPairs};
-use super::{EOL, NUM_END, DATE_END, DATE_LIKE, ARRAY_ITEMS, OBJ_ITEMS};
+use super::table::{InTable, Table, KvPairs};
+use super::{EOL, NUM_END, DATE_END, DATE_LIKE, ARRAY_ITEMS};
 use super::date::TomlDate;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Bool(bool),
     Int(i64),
@@ -17,7 +17,7 @@ pub enum Value {
     StrLit(String),
     Date(TomlDate),
     Array(Vec<Value>),
-    Object(Vec<KvPairs>),
+    InlineTable(InTable),
     Table(Table),
     Comment(String),
     Keys(Vec<KvPairs>),
@@ -35,9 +35,11 @@ impl Value {
             Ok(Value::Bool(false))
         } else {
             let msg = "invalid token in value";
+            let (ln, col) = muncher.cursor_position();
+            let ln = ln - s.len();
             Err(ParseTomlError::new(
                 msg.into(),
-                TomlErrorKind::UnexpectedToken(s),
+                TomlErrorKind::UnexpectedToken { tkn: s, ln, col },
             ))
         }
     }
@@ -45,7 +47,7 @@ impl Value {
     pub (crate) fn parse_int(muncher: &mut Muncher) -> TomlResult<Self> {
         let s = muncher.eat_until(|c| cmp_tokens(c, NUM_END)).collect::<String>();
         let s = s.replace('_', "");
-        let cleaned = s.trim_left_matches('+');
+        let cleaned = s.trim_start_matches('+');
 
         if s.starts_with("0x") {
             let without_prefix = cleaned.chars().skip(2).collect::<String>();
@@ -73,30 +75,51 @@ impl Value {
     pub (crate) fn parse_date(muncher: &mut Muncher) -> TomlResult<Self> {
         let mut s = muncher.eat_until(|c| cmp_tokens(c, DATE_END)).collect::<String>();
         if s.ends_with(' ') {
-            let (keep, junk) = s.split_at(s.chars().count() - 1);
-            println!("{:?}   {:?}", keep, junk);
-            s = keep.to_string();
+            println!("{}", s);
+            s = s.replace(" ", "");
         }
         Ok(Value::Date(TomlDate::from_str(&s)?))
     }
 
     pub (crate) fn parse_str(muncher: &mut Muncher) -> TomlResult<Self> {
-        let mut pair = 0;
-        let mut s = muncher
-            .eat_until(|c| {
-                if c == &'"' {
-                    pair += 1;
-                    pair == 2
-                } else {
-                    false
-                }
-            })
-            .collect::<String>();
+        muncher.reset_peek();
+        let triple_quote = muncher.seek(3).map(|s| s == "\"\"\"");
+        let mut s = if triple_quote == Some(true) {
+            for _ in 0..=3 { muncher.eat_quote(); }
+            let mut trip = 0;
+            muncher
+                .eat_until(|c| {
+                    if c == &'"' {
+                        trip += 1;
+                        trip == 3
+                    } else {
+                        trip = 0;
+                        false
+                    }
+                })
+                .collect::<String>()
+        } else {
+            let mut pair = 0;
+            muncher
+                .eat_until(|c| {
+                    if c == &'"' {
+                        pair += 1;
+                        pair == 2
+                    } else {
+                        false
+                    }
+                })
+                .collect::<String>()
+        };
 
         if s.starts_with('"') {
             s.remove(0);
         }
         if muncher.eat_quote() {
+            if triple_quote == Some(true) {
+                s.pop();
+                s.pop();
+            }
             Ok(Self::StrLit(s))
         } else {
             let msg = "invalid token in value";
@@ -105,9 +128,10 @@ impl Value {
             } else {
                 "no token".into()
             };
+            let (ln, col) = muncher.cursor_position();
             Err(ParseTomlError::new(
                 msg.into(),
-                TomlErrorKind::UnexpectedToken(tkn),
+                TomlErrorKind::UnexpectedToken { tkn, ln, col },
             ))
         }
     }
@@ -115,49 +139,44 @@ impl Value {
     /// TODO use muncher like every other parse function
     pub (crate) fn parse_array(muncher: &mut Muncher) -> TomlResult<Self> {
         assert!(muncher.eat_open_brc());
-        let items_raw = muncher.eat_until(|c| c == &']').collect::<String>();
+        if !muncher.eat_ws() { muncher.reset_peek(); }
+        // let items_raw = muncher.eat_until(|c| c == &']').collect::<String>();
         let mut items = Vec::default();
-        for s in items_raw.split(',') {
-            let raw = s.trim();
-            let mut mini_munch = Muncher::new(raw);
-            match raw.chars().next() {
-                Some('"') => items.push(Value::parse_str(&mut mini_munch)?),
-                Some('[') => items.push(Value::parse_array(&mut mini_munch)?),
-                Some('{') => items.push(Value::parse_obj(&mut mini_munch)?),
-                Some('t') | Some('f') => items.push(Value::parse_bool(&mut mini_munch)?),
+        loop {
+            // let item = muncher.eat_until(|c| cmp_tokens(c, ARRAY_ITEMS)).collect::<String>();
+            match muncher.peek() {
+                Some(']') => break,
+                Some('"') => items.push(Value::parse_str(muncher)?),
+                Some('[') => items.push(Value::parse_array(muncher)?),
+                Some('{') => items.push(Value::InlineTable(InTable::parse(muncher)?)),
+                Some('t') | Some('f') => items.push(Value::parse_bool(muncher)?),
                 Some(digi) if digi.is_numeric() => {
+                    let raw = muncher.peek_until(|c| cmp_tokens(c, ARRAY_ITEMS)).collect::<String>();
                     if raw.contains(DATE_LIKE) {
-                        items.push(Value::parse_date(&mut mini_munch)?)
+                        items.push(Value::parse_date(muncher)?)
                     } else if raw.contains('.') {
-                        items.push(Value::parse_float(&mut mini_munch)?)
+                        items.push(Value::parse_float(muncher)?)
                     } else {
-                        items.push(Value::parse_int(&mut mini_munch)?)
+                        items.push(Value::parse_int(muncher)?)
                     }
-                }
+                },
+                Some(',') => { muncher.eat_comma(); },
+                Some(' ') => { muncher.eat_ws(); },
                 Some(invalid) => {
                     let msg = "invalid token in value";
                     let tkn = format!("{:?}", invalid);
+                    let (ln, col) = muncher.cursor_position();
                     return Err(ParseTomlError::new(
                         msg.into(),
-                        TomlErrorKind::UnexpectedToken(tkn),
+                        TomlErrorKind::UnexpectedToken { tkn, ln, col },
                     ));
                 }
-                None => {
-                    println!("DONE ARRAY {:?}", items);
-                }
+                None => break,
             }
         }
+
         assert!(muncher.eat_close_brc());
         Ok(Value::Array(items))
-    }
-
-    pub (crate) fn parse_obj(muncher: &mut Muncher) -> TomlResult<Self> {
-        let pair = muncher.eat_until(|c| cmp_tokens(c, OBJ_ITEMS));
-        let kv = KvPairs::parse(muncher)?;
-
-        assert!(muncher.eat_close_curly());
-
-        Ok(Value::Object(kv))
     }
 }
 
@@ -175,11 +194,13 @@ impl Parse for Value {
             },
             Some('[') => Ok(Value::Table(Table::parse(muncher)?)),
             Some(ch) if ch.is_ascii() => Ok(Value::Keys(KvPairs::parse(muncher)?)),
-            Some(_) => {
-                let msg = "toml file must start with table".into();
+            Some(tkn) => {
+                let msg = "toml file must be key values or tables".into();
+                let tkn = format!("{}", tkn);
+                let (ln, col) = muncher.cursor_position();
                 Err(ParseTomlError::new(
                     msg,
-                    TomlErrorKind::UnexpectedToken("".into()),
+                    TomlErrorKind::UnexpectedToken { tkn, ln, col },
                 ))
             }
             None => Ok(Value::Eof),
@@ -195,16 +216,90 @@ mod tests {
     fn value_bool() {
         let input = "true";
         let mut muncher = Muncher::new(input);
+        let value = Value::parse_bool(&mut muncher).expect("bool failed");
+        if let Value::Bool(b) = value {
+            assert_eq!(b, true)
+        }
+    }
+
+    #[test]
+    fn value_triple_quote() {
+        let input = r#""""hello""""#;
+        let mut muncher = Muncher::new(input);
+        let value = Value::parse_str(&mut muncher).expect("triple quote failed");
+        // println!("{:#?}", value);
+        if let Value::StrLit(s) = value {
+            assert_eq!(s, "hello")
+        }
+    }
+
+    #[test]
+    fn value_bool_fail() {
+        let input = "untrue";
+        let mut muncher = Muncher::new(input);
         let value = Value::parse_bool(&mut muncher);
-        println!("{:#?}", value);
+        // println!("{:#?}", value);
+        assert!(value.is_err());
     }
 
     #[test]
     fn value_array() {
         let input = r#"[ "a", "b", "c", ]"#;
         let mut muncher = Muncher::new(input);
+        let value = Value::parse_array(&mut muncher).expect("array failed");
+        // println!("{:#?}", value);
+        if let Value::Array(arr) = value {
+            assert_eq!(arr.len(), 3);
+            // println!("{:?}", arr)
+        }
+    }
+
+    #[test]
+    fn nested_array() {
+        let input = r#"[ ["a"], ["b", "c"] ]"#;
+        let mut muncher = Muncher::new(input);
+        let value = Value::parse_array(&mut muncher).expect("array failed");
+        // println!("{:#?}", value);
+        if let Value::Array(arr) = value {
+            assert_eq!(arr.len(), 2);
+            // println!("{:?}", arr)
+        }
+    }
+
+    #[test]
+    fn value_array_fail() {
+        let input = r#"[ will_fail ]"#;
+        let mut muncher = Muncher::new(input);
         let value = Value::parse_array(&mut muncher);
-        println!("{:#?}", value);
+        // println!("{:#?}", value);
+        assert!(value.is_err())
+    }
+
+    #[test]
+    fn value_object() {
+        let input = r#"{ a = "a", b = "b" }"#;
+        let mut muncher = Muncher::new(input);
+        let value = InTable::parse(&mut muncher).expect("obj failed");
+        // println!("{:#?}", value);
+        assert_eq!(value.len(), 2);
+
+        let mut m = Muncher::new(r#"a = "a""#);
+        let a_pair = KvPairs::parse(&mut m).expect("cmp kv failed");
+        assert_eq!(value.get("a"), Some(&a_pair[0]))
+    }
+
+    #[test]
+    fn nested_object() {
+        let input = r#"{ a = { c = "c" }, b = "b" }"#;
+        let mut muncher = Muncher::new(input);
+        let value = InTable::parse(&mut muncher).expect("obj failed");
+        // println!("{:#?}", value);
+        assert_eq!(value.len(), 2);
+
+        let mut m = Muncher::new(r#"b = "b""#);
+        let a_pair = KvPairs::parse(&mut m).expect("cmp kv failed");
+        assert_eq!(value.get("b"), Some(&a_pair[0]));
+        assert_eq!(value.get("a").unwrap().key(), Some("a"));
     }
 
     #[test]
@@ -212,7 +307,7 @@ mod tests {
     fn value_float() {
         let input = r#"224_617.445_991_228"#;
         let mut muncher = Muncher::new(input);
-        let value = Value::parse_float(&mut muncher).expect("float parse");
+        let value = Value::parse_float(&mut muncher).expect("float failed");
         if let Value::Float(flt) = value {
             assert_eq!(flt, 224_617.445_991_228)
         }
@@ -255,12 +350,10 @@ mod tests {
         ];
         
         for (input, fmt) in dates.iter().zip(fmt.iter()) {
-            println!("{:?} {:?}", input, fmt);
             let mut fixed = (*input).to_string();
             fixed.pop();
             let mut muncher = Muncher::new(input);
             let value = Value::parse_date(&mut muncher).expect("Parse Failed");
-            println!("{:#?}", value);
             if let Value::Date(dt) = value {
                 match dt {
                     TomlDate::DateTime(dt) => {
@@ -279,6 +372,57 @@ mod tests {
             } else {
                 panic!("date not parsed")
             }
+        }
+    }
+
+    #[test]
+    fn kv_table() {
+        let input = r#"[hello]
+a = "a"
+b = "b"
+"#;
+        let mut muncher = Muncher::new(input);
+        let value = Value::parse(&mut muncher).expect("Parse Failed");
+
+        if let Value::Table(table) = value {
+            assert_eq!(table.header(), "hello");
+            assert_eq!(table.item_len(), 2);
+        } else {
+            panic!("no table parsed")
+        }
+    }
+
+    #[test]
+    fn seg_header() {
+        let input = r#"[hello.world]
+a = "a"
+b = "b"
+"#;
+        let mut muncher = Muncher::new(input);
+        let value = Value::parse(&mut muncher).expect("Parse Failed");
+        if let Value::Table(table) = value {
+            assert_eq!(table.header(), "hello.world");
+            assert_eq!(table.seg_len(), 2);
+            assert_eq!(table.item_len(), 2);
+        } else {
+            panic!("no table parsed")
+        }
+    }
+
+    #[test]
+    fn file_parser() {
+        // ftop.toml is 7 items long
+        let input = std::fs::read_to_string("examp/ftop.toml").expect("file read failed");
+
+        let mut parsed = Vec::default();
+        let mut muncher = Muncher::new(&input);
+        while let Ok(value) = Value::parse(&mut muncher) {
+            if value == Value::Eof { break };
+            parsed.push(value);
+        }
+        assert_eq!(parsed.len(), 7);
+        for item in parsed {
+            // println!("{:#?}", item);
         }
     }
 }

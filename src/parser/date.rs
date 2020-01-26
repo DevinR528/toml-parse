@@ -9,7 +9,7 @@ use super::{EOL, NUM_END, DATE_END, DATE_LIKE, ARRAY_ITEMS};
 const DATE_CHAR: &[char] = &[ '-' ];
 const TIME_CHAR: &[char] = &[ ':', '+' ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TomlDate {
     DateTime(NaiveDateTime),
     Date(NaiveDate),

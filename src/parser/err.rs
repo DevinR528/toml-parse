@@ -7,7 +7,7 @@ pub type TomlResult<T> = Result<T, ParseTomlError>;
 
 #[derive(PartialEq)]
 pub enum TomlErrorKind {
-    UnexpectedToken(String),
+    UnexpectedToken { tkn: String, ln: usize, col: usize },
     DateError,
     NumberError,
     InternalParseError(String),
@@ -80,11 +80,13 @@ impl std::fmt::Debug for ParseTomlError {
 impl std::fmt::Display for ParseTomlError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let span = match &self.kind {
-            TomlErrorKind::InternalParseError(ref span) => span,
-            TomlErrorKind::UnexpectedToken(ref span) => span,
-            TomlErrorKind::DateError => "an invalid date-time",
-            TomlErrorKind::NumberError => "an invalid number",
+            TomlErrorKind::InternalParseError(span) => span.into(),
+            TomlErrorKind::UnexpectedToken { tkn, ln, col } => {
+                format!("{} at ln {}, col {}", tkn, ln, col)
+            },
+            TomlErrorKind::DateError => "an invalid date-time".into(),
+            TomlErrorKind::NumberError => "an invalid number".into(),
         };
-        write!(f, "{}, found {:?}", self.info, span)
+        write!(f, "{}, found {}", self.info, span)
     }
 }
