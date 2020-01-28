@@ -1,13 +1,9 @@
-use chrono::{Date, DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
-use super::parse::Parse;
-use super::token::{cmp_tokens, Muncher};
-use super::table::Table;
-use super::{EOL, NUM_END, DATE_END, DATE_LIKE, ARRAY_ITEMS};
 
-const DATE_CHAR: &[char] = &[ '-' ];
-const TIME_CHAR: &[char] = &[ ':', '+' ];
+const DATE_CHAR: &[char] = &['-'];
+const TIME_CHAR: &[char] = &[':', '+'];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TomlDate {
@@ -27,28 +23,33 @@ impl TomlDate {
             let date = dt[0].split(DATE_CHAR).collect::<Vec<_>>();
             let time = dt[1].split(TIME_CHAR).collect::<Vec<_>>();
 
-            let ndt = if time.len() > 3 {
-                if input.contains('+') {
-                    // TODO dont include offset for now
-                    NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
-                    .and_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?)
+            let ndt =
+                if time.len() > 3 {
+                    if input.contains('+') {
+                        // TODO dont include offset for now
+                        NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
+                            .and_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?)
+                    } else {
+                        NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
+                            .and_hms_milli(
+                                time[0].parse()?,
+                                time[1].parse()?,
+                                time[2].parse()?,
+                                time[3].parse()?,
+                            )
+                    }
                 } else {
                     NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
-                    .and_hms_milli(time[0].parse()?, time[1].parse()?, time[2].parse()?, time[3].parse()?)
-                }
-            } else {
-                NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
-                .and_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?)
-            };
+                        .and_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?)
+                };
             Ok(TomlDate::DateTime(ndt))
-
         } else if input.contains(TIME_CHAR) {
             let time = input.split(TIME_CHAR).collect::<Vec<_>>();
 
             assert!(time.len() >= 3);
 
             let ndt = if time[2].contains('.') {
-                let (sec, milli) =  {
+                let (sec, milli) = {
                     let fractional = time[2].split('.').collect::<Vec<_>>();
                     (fractional[0].parse()?, fractional[1].parse()?)
                 };
@@ -58,7 +59,6 @@ impl TomlDate {
                 NaiveTime::from_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?)
             };
             Ok(TomlDate::Time(ndt))
-
         } else if input.contains(DATE_CHAR) {
             let date = input.split(DATE_CHAR).collect::<Vec<_>>();
 
@@ -66,9 +66,11 @@ impl TomlDate {
 
             let ndt = NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?);
             Ok(TomlDate::Date(ndt))
-
-        } else  {
-            Err(ParseTomlError::new(String::default(), TomlErrorKind::DateError))
+        } else {
+            Err(ParseTomlError::new(
+                String::default(),
+                TomlErrorKind::DateError,
+            ))
         }
     }
 }

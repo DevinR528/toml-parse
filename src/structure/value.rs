@@ -1,13 +1,9 @@
-use std::str::FromStr;
-
-use chrono::{Date, DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime};
-
-use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
-use super::parse::Parse;
-use super::token::{cmp_tokens, Muncher};
-use super::table::{InTable, Table, KvPairs};
-use super::{EOL, NUM_END, DATE_END, DATE_LIKE, ARRAY_ITEMS};
 use super::date::TomlDate;
+use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
+use super::munch::{cmp_tokens, Muncher};
+use super::parse::Parse;
+use super::table::{InTable, KvPairs, Table};
+use super::{ARRAY_ITEMS, BOOL_END, DATE_LIKE, EOL, NUM_END};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -20,14 +16,14 @@ pub enum Value {
     InlineTable(InTable),
     Table(Table),
     Comment(String),
-    Keys(Vec<KvPairs>),
+    KeyValue(Box<KvPairs>),
     Eof,
 }
 
 impl Value {
-    pub (crate) fn parse_bool(muncher: &mut Muncher) -> TomlResult<Self> {
+    pub(crate) fn parse_bool(muncher: &mut Muncher) -> TomlResult<Self> {
         let s = muncher
-            .eat_until(|c| cmp_tokens(c, EOL))
+            .eat_until(|c| cmp_tokens(c, BOOL_END))
             .collect::<String>();
         if s == "true" {
             Ok(Value::Bool(true))
@@ -36,7 +32,6 @@ impl Value {
         } else {
             let msg = "invalid token in value";
             let (ln, col) = muncher.cursor_position();
-            let ln = ln - s.len();
             Err(ParseTomlError::new(
                 msg.into(),
                 TomlErrorKind::UnexpectedToken { tkn: s, ln, col },
@@ -44,48 +39,56 @@ impl Value {
         }
     }
 
-    pub (crate) fn parse_int(muncher: &mut Muncher) -> TomlResult<Self> {
-        let s = muncher.eat_until(|c| cmp_tokens(c, NUM_END)).collect::<String>();
+    pub(crate) fn parse_int(muncher: &mut Muncher) -> TomlResult<Self> {
+        let s = muncher
+            .eat_until(|c| cmp_tokens(c, NUM_END))
+            .collect::<String>();
         let s = s.replace('_', "");
         let cleaned = s.trim_start_matches('+');
 
         if s.starts_with("0x") {
             let without_prefix = cleaned.chars().skip(2).collect::<String>();
             let z = i64::from_str_radix(&without_prefix, 16);
-            return Ok(Value::Int(z?))
+            return Ok(Value::Int(z?));
         } else if s.starts_with("0o") {
             let without_prefix = cleaned.chars().skip(2).collect::<String>();
             let z = i64::from_str_radix(&without_prefix, 8);
-            return Ok(Value::Int(z?))
+            return Ok(Value::Int(z?));
         } else if s.starts_with("0b") {
             let without_prefix = cleaned.chars().skip(2).collect::<String>();
             let z = i64::from_str_radix(&without_prefix, 2);
-            return Ok(Value::Int(z?))
+            return Ok(Value::Int(z?));
         }
-        
+
         Ok(Value::Int(cleaned.parse()?))
     }
 
-    pub (crate) fn parse_float(muncher: &mut Muncher) -> TomlResult<Self> {
-        let s = muncher.eat_until(|c| cmp_tokens(c, NUM_END)).collect::<String>();
+    pub(crate) fn parse_float(muncher: &mut Muncher) -> TomlResult<Self> {
+        let s = muncher
+            .eat_until(|c| cmp_tokens(c, NUM_END))
+            .collect::<String>();
         let cleaned = s.replace('_', "");
         Ok(Value::Float(cleaned.parse()?))
     }
 
-    pub (crate) fn parse_date(muncher: &mut Muncher) -> TomlResult<Self> {
-        let mut s = muncher.eat_until(|c| cmp_tokens(c, DATE_END)).collect::<String>();
+    pub(crate) fn parse_date(muncher: &mut Muncher) -> TomlResult<Self> {
+        let mut s = muncher
+            .eat_until(|c| cmp_tokens(c, NUM_END))
+            .collect::<String>();
         if s.ends_with(' ') {
-            println!("{}", s);
+            println!("COLLECTED SPACE IN NUMBER {} BUG?", s);
             s = s.replace(" ", "");
         }
         Ok(Value::Date(TomlDate::from_str(&s)?))
     }
 
-    pub (crate) fn parse_str(muncher: &mut Muncher) -> TomlResult<Self> {
+    pub(crate) fn parse_str(muncher: &mut Muncher) -> TomlResult<Self> {
         muncher.reset_peek();
         let triple_quote = muncher.seek(3).map(|s| s == "\"\"\"");
         let mut s = if triple_quote == Some(true) {
-            for _ in 0..=3 { muncher.eat_quote(); }
+            for _ in 0..=3 {
+                muncher.eat_quote();
+            }
             let mut trip = 0;
             muncher
                 .eat_until(|c| {
@@ -137,9 +140,11 @@ impl Value {
     }
 
     /// TODO use muncher like every other parse function
-    pub (crate) fn parse_array(muncher: &mut Muncher) -> TomlResult<Self> {
+    pub(crate) fn parse_array(muncher: &mut Muncher) -> TomlResult<Self> {
         assert!(muncher.eat_open_brc());
-        if !muncher.eat_ws() { muncher.reset_peek(); }
+        if !muncher.eat_ws() {
+            muncher.reset_peek();
+        }
         // let items_raw = muncher.eat_until(|c| c == &']').collect::<String>();
         let mut items = Vec::default();
         loop {
@@ -151,7 +156,9 @@ impl Value {
                 Some('{') => items.push(Value::InlineTable(InTable::parse(muncher)?)),
                 Some('t') | Some('f') => items.push(Value::parse_bool(muncher)?),
                 Some(digi) if digi.is_numeric() => {
-                    let raw = muncher.peek_until(|c| cmp_tokens(c, ARRAY_ITEMS)).collect::<String>();
+                    let raw = muncher
+                        .peek_until(|c| cmp_tokens(c, ARRAY_ITEMS))
+                        .collect::<String>();
                     if raw.contains(DATE_LIKE) {
                         items.push(Value::parse_date(muncher)?)
                     } else if raw.contains('.') {
@@ -159,9 +166,13 @@ impl Value {
                     } else {
                         items.push(Value::parse_int(muncher)?)
                     }
-                },
-                Some(',') => { muncher.eat_comma(); },
-                Some(' ') => { muncher.eat_ws(); },
+                }
+                Some(',') => {
+                    muncher.eat_comma();
+                }
+                Some(' ') => {
+                    muncher.eat_ws();
+                }
                 Some(invalid) => {
                     let msg = "invalid token in value";
                     let tkn = format!("{:?}", invalid);
@@ -186,14 +197,18 @@ impl Parse for Value {
         match muncher.peek() {
             Some('#') => {
                 let cmt = Ok(Value::Comment(
-                    muncher.eat_until(|c| cmp_tokens(c, EOL))
-                        .collect::<String>()
-                    ));
+                    muncher
+                        .eat_until(|c| cmp_tokens(c, EOL))
+                        .collect::<String>(),
+                ));
                 assert!(muncher.eat_eol());
                 cmt
-            },
+            }
             Some('[') => Ok(Value::Table(Table::parse(muncher)?)),
-            Some(ch) if ch.is_ascii() => Ok(Value::Keys(KvPairs::parse(muncher)?)),
+            Some(ch) if ch.is_ascii() => {
+                let kv = KvPairs::parse_one(muncher)?;
+                Ok(Value::KeyValue(Box::new(kv)))
+            }
             Some(tkn) => {
                 let msg = "toml file must be key values or tables".into();
                 let tkn = format!("{}", tkn);
@@ -315,16 +330,8 @@ mod tests {
 
     #[test]
     fn value_integer() {
-        let ints = &[
-            "5_349_221",
-            "0xdeadbeef",
-            "0b11010110"
-        ];
-        let integers = &[
-            5_349_221,
-            0xdead_beef,
-            0b1101_0110
-        ];
+        let ints = &["5_349_221", "0xdeadbeef", "0b11010110"];
+        let integers = &[5_349_221, 0xdead_beef, 0b1101_0110];
         for (i, int) in ints.iter().enumerate() {
             let mut muncher = Muncher::new(int);
             let value = Value::parse_int(&mut muncher).expect("int parse failed");
@@ -336,19 +343,21 @@ mod tests {
 
     #[test]
     fn value_date() {
+        use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+
         let dates = &[
             "1979-05-27T07:32:01+09:30,", // with offset date-time
-            "1979-05-27T07:32:01,",  // local date-time
-            "1979-05-27,",           // local date
-            "00:32:00.999\n",      // local time
+            "1979-05-27T07:32:01,",       // local date-time
+            "1979-05-27,",                // local date
+            "00:32:00.999\n",             // local time
         ];
         let fmt = &[
             "%Y-%m-%dT%H:%M:%S%z", // with offset date-time
-            "%Y-%m-%dT%H:%M:%S",  // local date-time
-            "%Y-%m-%d",           // local date
-            "%H:%M:%S%.f",      // local time
+            "%Y-%m-%dT%H:%M:%S",   // local date-time
+            "%Y-%m-%d",            // local date
+            "%H:%M:%S%.f",         // local time
         ];
-        
+
         for (input, fmt) in dates.iter().zip(fmt.iter()) {
             let mut fixed = (*input).to_string();
             fixed.pop();
@@ -357,17 +366,20 @@ mod tests {
             if let Value::Date(dt) = value {
                 match dt {
                     TomlDate::DateTime(dt) => {
-                        let parsed_dt = NaiveDateTime::parse_from_str(&fixed, fmt).expect("naive dt failed");
+                        let parsed_dt =
+                            NaiveDateTime::parse_from_str(&fixed, fmt).expect("naive dt failed");
                         assert_eq!(dt, parsed_dt)
-                    },
+                    }
                     TomlDate::Time(dt) => {
-                        let parsed_dt = NaiveTime::parse_from_str(&fixed, fmt).expect("naive dt failed");
+                        let parsed_dt =
+                            NaiveTime::parse_from_str(&fixed, fmt).expect("naive dt failed");
                         assert_eq!(dt, parsed_dt)
-                    },
+                    }
                     TomlDate::Date(dt) => {
-                        let parsed_dt = NaiveDate::parse_from_str(&fixed, fmt).expect("naive dt failed");
+                        let parsed_dt =
+                            NaiveDate::parse_from_str(&fixed, fmt).expect("naive dt failed");
                         assert_eq!(dt, parsed_dt)
-                    },
+                    }
                 }
             } else {
                 panic!("date not parsed")
@@ -417,7 +429,9 @@ b = "b"
         let mut parsed = Vec::default();
         let mut muncher = Muncher::new(&input);
         while let Ok(value) = Value::parse(&mut muncher) {
-            if value == Value::Eof { break };
+            if value == Value::Eof {
+                break;
+            };
             parsed.push(value);
         }
         assert_eq!(parsed.len(), 7);

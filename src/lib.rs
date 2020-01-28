@@ -1,3 +1,5 @@
-mod parser;
+mod common;
+mod structure;
+mod tkn_tree;
 
-pub use parser::{Toml, TomlFile, Value, Heading, KvPairs, Table};
+pub use structure::{Heading, KvPairs, Table, Toml, Value};

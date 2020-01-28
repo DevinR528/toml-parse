@@ -1,5 +1,5 @@
 use super::err::ParseTomlError;
-use super::token::Muncher;
+use super::munch::Muncher;
 pub trait Parse {
     type Item;
     /// Parse a valid toml str into to a toml token.

@@ -1,8 +1,14 @@
 use std::cell::Cell;
 
-use super::Value;
-use super::{EOL};
+pub(crate) const EOL: &[char] = &['\n', '\r'];
+pub(crate) const NUM_END: &[char] = &['\n', '\r', ',', ']', ' ', '}'];
+pub(crate) const BOOL_END: &[char] = &['\n', '\r', ',', ']', ' ', '}'];
+pub(crate) const ARRAY_ITEMS: &[char] = &[',', ']'];
+pub(crate) const KEY_END: &[char] = &[' ', ',', '='];
+pub(crate) const DATE_LIKE: &[char] = &['-', '/', ':', 'T'];
 
+/// TODO fix pass by ref
+#[allow(clippy::trivially_copy_pass_by_ref)]
 pub fn cmp_tokens(ch: &char, chars: &[char]) -> bool {
     chars.iter().any(|c| c == ch)
 }
@@ -14,13 +20,6 @@ pub struct Fork<'a> {
 }
 
 impl<'f> Fork<'f> {
-    fn new(input: &'f [char]) -> Self {
-        Self {
-            input,
-            peek: Cell::new(0),
-        }
-    }
-
     fn reset_peek(&self) {
         self.peek.set(0);
     }
@@ -125,10 +124,9 @@ impl Muncher {
                 self.peek.set(self.peek.get() + 1);
             }
         }
-        let end = self.next;
+        let end = self.peek.get();
         self.peek.set(end);
-        self.input[start..end]
-            .iter()
+        self.input[start..end].iter()
     }
 
     pub(crate) fn seek(&self, count: usize) -> Option<String> {

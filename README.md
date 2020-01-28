@@ -23,7 +23,7 @@ alpha = "beta"
 number = 1234
 array = [ true, false, true ]
 inline-table = { date = 1988-02-03T10:32:10, }
-"#
+"#;
 
 let parsed = Toml::parse(file).unwrap();
 parsed.get_table("deps").add("new-key", "hello");

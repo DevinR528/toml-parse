@@ -83,7 +83,7 @@ impl std::fmt::Display for ParseTomlError {
             TomlErrorKind::InternalParseError(span) => span.into(),
             TomlErrorKind::UnexpectedToken { tkn, ln, col } => {
                 format!("{} at ln {}, col {}", tkn, ln, col)
-            },
+            }
             TomlErrorKind::DateError => "an invalid date-time".into(),
             TomlErrorKind::NumberError => "an invalid number".into(),
         };

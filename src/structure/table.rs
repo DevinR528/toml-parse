@@ -1,8 +1,8 @@
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
+use super::munch::{cmp_tokens, Muncher};
 use super::parse::Parse;
-use super::token::{cmp_tokens, Muncher};
 use super::value::Value;
-use super::{KEY_END, EOL, ARRAY_ITEMS, DATE_END};
+use super::{DATE_LIKE, EOL, KEY_END, NUM_END};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heading {
@@ -57,8 +57,9 @@ impl KvPairs {
             return Ok(Some(("".into(), Value::Comment(cmt))));
         }
 
-        let key = muncher.eat_until(|c| cmp_tokens(c, KEY_END))
-                .collect::<String>();
+        let key = muncher
+            .eat_until(|c| cmp_tokens(c, KEY_END))
+            .collect::<String>();
 
         let val: TomlResult<Value>;
         let fork = muncher.fork();
@@ -73,6 +74,19 @@ impl KvPairs {
                 Some('t') | Some('f') => Value::parse_bool(muncher),
                 Some('[') => Value::parse_array(muncher),
                 Some('{') => Ok(Value::InlineTable(InTable::parse(muncher)?)),
+                Some(digi) if digi.is_numeric() => {
+                    muncher.reset_peek();
+                    let raw = muncher
+                        .peek_until(|c| cmp_tokens(c, NUM_END))
+                        .collect::<String>();
+                    if raw.contains(DATE_LIKE) {
+                        Value::parse_date(muncher)
+                    } else if raw.contains('.') {
+                        Value::parse_float(muncher)
+                    } else {
+                        Value::parse_int(muncher)
+                    }
+                }
                 None => Ok(Value::Eof),
                 _ => {
                     let msg = "invalid token in key value pairs";
@@ -89,6 +103,7 @@ impl KvPairs {
                 }
             }
         } else if fork.peek().map(|c| cmp_tokens(c, EOL)) == Some(true) {
+            // TODO is this \n\n this is the EOF for the file??
             return Ok(None);
         } else {
             let msg = "invalid token in key value pairs";
@@ -109,6 +124,20 @@ impl KvPairs {
         }
         // println!("{:?} {:?}", key, val);
         Ok(Some((key, val?)))
+    }
+
+    pub(crate) fn parse_one(muncher: &mut Muncher) -> TomlResult<KvPairs> {
+        muncher.reset_peek();
+        let pair = KvPairs::parse_pairs(muncher)?;
+        if let Some((key, val)) = pair {
+            let key = if key.is_empty() { None } else { Some(key) };
+            let kv = Self { key, val };
+            // remove new line after each pair
+            muncher.eat_eol();
+            Ok(kv)
+        } else {
+            todo!("what happens here");
+        }
     }
 }
 
@@ -142,20 +171,34 @@ pub struct Table {
 }
 
 impl Table {
-    pub(crate) fn header(&self) -> &str {
+    /// The heading of the given `Table`.
+    pub fn header(&self) -> &str {
         &self.header.header
     }
-    pub(crate) fn segments(&self) -> &[String] {
+    /// The segments of the heading of a given `Table`.
+    pub fn segments(&self) -> &[String] {
         &self.header.seg
     }
-    pub(crate) fn item_len(&self) -> usize {
+    /// The number of items in this `Table`.
+    pub fn item_len(&self) -> usize {
         self.pairs.len()
     }
-    pub(crate) fn seg_len(&self) -> usize {
+    /// Number of segments the header is broken into.
+    ///
+    /// ```ignore
+    /// [this.is.segmented]
+    /// key = "value"
+    /// ```
+    pub fn seg_len(&self) -> usize {
         self.header.seg.len()
     }
-    pub(crate) fn items(&self) -> &[KvPairs] {
+    /// The `KvPairs` this table holds as a slice.
+    pub fn items(&self) -> &[KvPairs] {
         &self.pairs
+    }
+
+    pub fn get(&self, key: &str) -> Option<&KvPairs> {
+        self.pairs.iter().find(|pair| pair.key_match(key))
     }
 }
 
@@ -189,9 +232,7 @@ impl InTable {
         self.len() == 0
     }
     pub fn get(&self, key: &str) -> Option<&KvPairs> {
-        self.pairs.iter().find(|pair| {
-            pair.key_match(key)
-        })
+        self.pairs.iter().find(|pair| pair.key_match(key))
     }
 }
 
@@ -203,7 +244,6 @@ impl Parse for InTable {
 
         let mut pairs = Vec::default();
         loop {
-
             if muncher.peek() == Some(&'}') {
                 break;
             }
@@ -228,6 +268,20 @@ impl Parse for InTable {
         muncher.eat_ws();
         assert!(muncher.eat_close_curly());
 
-        Ok(InTable { pairs, })
+        Ok(InTable { pairs })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn num_kvpair() {
+        let input = "key = 12345";
+
+        let mut muncher = Muncher::new(input);
+        let kv = KvPairs::parse(&mut muncher);
+        println!("{:?}", kv);
     }
 }
