@@ -1,16 +1,79 @@
 use std::cell::Cell;
+use std::ops::Range;
+
+use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
+
+type TextRange = Range<usize>;
 
 pub(crate) const EOL: &[char] = &['\n', '\r'];
+pub(crate) const QUOTE: &[char] = &['\"', '\''];
 pub(crate) const NUM_END: &[char] = &['\n', '\r', ',', ']', ' ', '}'];
+pub(crate) const DATE_END: &[char] = &['\n', '\r', ',', ']', '}'];
+pub(crate) const INT_END: &[char] = &['\n', '\r', ',', '.', ']', ' ', '}'];
 pub(crate) const BOOL_END: &[char] = &['\n', '\r', ',', ']', ' ', '}'];
 pub(crate) const ARRAY_ITEMS: &[char] = &[',', ']'];
+pub(crate) const INLINE_ITEMS: &[char] = &[',', '}'];
 pub(crate) const KEY_END: &[char] = &[' ', ',', '='];
 pub(crate) const DATE_LIKE: &[char] = &['-', '/', ':', 'T'];
+pub(crate) const WHITESPACE: &[char] = &[' ', '\n', '\t', '\r'];
+pub(crate) const DATE_TIME: &[char] = &[' ', 'T'];
+pub(crate) const DATE_CHAR: &[char] = &['-'];
+pub(crate) const TIME_CHAR: &[char] = &[':', '+'];
 
 /// TODO fix pass by ref
 #[allow(clippy::trivially_copy_pass_by_ref)]
 pub fn cmp_tokens(ch: &char, chars: &[char]) -> bool {
     chars.iter().any(|c| c == ch)
+}
+
+#[derive(Debug, Clone)]
+pub struct Stack<'a> {
+    input: &'a str,
+    stack: Vec<char>,
+    pos: (usize, usize),
+}
+
+impl<'s> Stack<'s> {
+    pub(crate) fn new(input: &'s str, pos: (usize, usize)) -> Stack<'s> {
+        Self {
+            input,
+            stack: Vec::default(),
+            pos,
+        }
+    }
+
+    pub(crate) fn eat(&mut self, input: char) -> TomlResult<()> {
+        match input {
+            '{' | '[' | '(' => self.push(input),
+            '}' | ']' | ')' => self.pop(),
+            _ => Ok(()),
+        }
+    }
+
+    pub(crate) fn push(&mut self, ch: char) -> TomlResult<()> {
+        self.stack.push(ch);
+        Ok(())
+    }
+    pub(crate) fn pop(&mut self) -> TomlResult<()> {
+        if self.stack.get(0).is_some() {
+            self.stack.remove(0);
+            Ok(())
+        } else {
+            let msg = "bracket mismatch";
+            let tkn = self.stack.get(0).map(|c| format!("{}", c)).unwrap_or(String::default());
+            Err(ParseTomlError::new(
+                msg.into(),
+                TomlErrorKind::UnexpectedToken {
+                    tkn,
+                    ln: self.pos.0,
+                    col: self.pos.1,
+                },
+            ))
+        }
+    }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.stack.is_empty()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -43,15 +106,17 @@ impl<'f> Fork<'f> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Muncher {
+pub struct Muncher<'a> {
+    text: &'a str,
     input: Vec<char>,
     peek: Cell<usize>,
     next: usize,
 }
 
-impl Muncher {
-    pub(crate) fn new(input: &str) -> Self {
+impl<'a> Muncher<'a> {
+    pub(crate) fn new(input: &'a str) -> Self {
         Self {
+            text: input,
             input: input.chars().collect(),
             peek: Cell::new(0),
             next: 0,
@@ -63,6 +128,10 @@ impl Muncher {
             input: &self.input[self.next..],
             peek: Cell::new(0),
         }
+    }
+
+    pub(crate) fn text(&self) -> &str {
+        self.text
     }
 
     pub(crate) fn position(&self) -> usize {
@@ -127,6 +196,25 @@ impl Muncher {
         let end = self.peek.get();
         self.peek.set(end);
         self.input[start..end].iter()
+    }
+
+    /// Eat tokens until given predicate is true returns start and end.
+    /// Resets the peek position everytime called.
+    pub(crate) fn peek_until_count<P>(&self, mut pred: P) -> (usize, usize)
+    where
+        P: FnMut(&char) -> bool,
+    {
+        let start = self.reset_peek();
+        for ch in self.input[start..].iter() {
+            if pred(ch) {
+                break;
+            } else {
+                self.peek.set(self.peek.get() + 1);
+            }
+        }
+        let end = self.peek.get();
+        self.peek.set(end);
+        (start, end)
     }
 
     pub(crate) fn seek(&self, count: usize) -> Option<String> {
@@ -232,6 +320,51 @@ impl Muncher {
         }
     }
 
+    pub(crate) fn eat_hash(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&'#') {
+            self.eat().is_some()
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn eat_plus(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&'+') {
+            self.eat().is_some()
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn eat_minus(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&'-') {
+            self.eat().is_some()
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn eat_colon(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&':') {
+            self.eat().is_some()
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn eat_dot(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&'.') {
+            self.eat().is_some()
+        } else {
+            false
+        }
+    }
+
     /// Eat tokens until given predicate is true.
     pub(crate) fn eat_until<P>(&mut self, mut pred: P) -> impl Iterator<Item = char>
     where
@@ -259,6 +392,30 @@ impl Muncher {
             .copied()
             .collect::<Vec<_>>()
             .into_iter()
+    }
+
+    pub(crate) fn eat_until_count<P>(&mut self, mut pred: P) -> (usize, usize)
+    where
+        P: FnMut(&char) -> bool,
+    {
+        let start = self.next;
+        for ch in self.input[start..].iter() {
+            if pred(ch) {
+                break;
+            } else {
+                self.next += 1;
+            }
+        }
+        let end = self.next;
+        self.peek.set(end);
+        self.next = end;
+        // println!(
+        //     "eat until ({}, {}) {:?}",
+        //     start,
+        //     end,
+        //     &self.input[start..end]
+        // );
+        (start, end)
     }
 }
 

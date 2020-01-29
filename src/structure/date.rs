@@ -1,9 +1,7 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
-
-const DATE_CHAR: &[char] = &['-'];
-const TIME_CHAR: &[char] = &[':', '+'];
+use super::{DATE_CHAR, TIME_CHAR};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TomlDate {
