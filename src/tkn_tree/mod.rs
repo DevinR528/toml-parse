@@ -23,6 +23,19 @@ mod tests {
     }
 
     #[test]
+    fn parents() {
+        let file = "[table]\n# hello there";
+        let parsed = Tokenizer::parse(file).expect("parse failed");
+
+        println!("{:#?}", parsed.as_node().unwrap());
+
+        // for ele in parsed.walk_with_tokens() {
+        //     println!("{:?}", ele);
+        //     println!("{:?}", ele.ancestors().collect::<Vec<_>>())
+        // }
+    }
+
+    #[test]
     fn all_tokens() {
         let file = r#"[deps]
 alpha = "beta"
@@ -31,6 +44,12 @@ array = [ true, false, true ]
 inline-table = { date = 1988-02-03T10:32:10, }
 "#;
         let parsed = Tokenizer::parse(file).expect("parse failed");
-        println!("{:#?}", parsed);
+
+        println!("{:#?}", parsed.as_node().unwrap());
+
+        // for ele in parsed.walk_with_tokens() {
+        //     println!("{:?}", ele);
+        //     println!("{:?}", ele.ancestors().collect::<Vec<_>>())
+        // }
     }
 }

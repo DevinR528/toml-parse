@@ -1,8 +1,8 @@
 use smol_str::SmolStr;
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{NaiveDate, NaiveTime};
 
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
-use super::kinds::{Element, TomlKind::*, TomlNode, TomlToken};
+use super::kinds::{Element, TomlKind::*, TomlNode, TomlToken, Ancestor};
 use super::munch::{
     cmp_tokens, Muncher, ARRAY_ITEMS, BOOL_END, EOL, INT_END, NUM_END, QUOTE, WHITESPACE, DATE_LIKE,
     DATE_TIME, DATE_END, DATE_CHAR, TIME_CHAR, KEY_END, INLINE_ITEMS
@@ -73,6 +73,7 @@ impl TomlToken {
         println!("WS {:?}", text);
         Ok(Element::Token(Self {
             kind: Whitespace,
+            parent: Ancestor::Root,
             text,
             range: s..e,
         }))
@@ -88,6 +89,7 @@ impl TomlToken {
         if s != e {
             Some(Element::Token(Self {
                 kind: Whitespace,
+                parent: Ancestor::Root,
                 text,
                 range: s..e,
             }))
@@ -102,6 +104,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: Hash,
+            parent: Ancestor::Root,
             text: SmolStr::new("#"),
             range: start..end,
         }))
@@ -113,6 +116,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: Plus,
+            parent: Ancestor::Root,
             text: SmolStr::new("+"),
             range: start..end,
         }))
@@ -124,6 +128,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: Minus,
+            parent: Ancestor::Root,
             text: SmolStr::new("-"),
             range: start..end,
         }))
@@ -136,6 +141,7 @@ impl TomlToken {
         println!("EQ");
         Ok(Element::Token(Self {
             kind: Equal,
+            parent: Ancestor::Root,
             text: SmolStr::new("="),
             range: start..end,
         }))
@@ -147,6 +153,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: Comma,
+            parent: Ancestor::Root,
             text: SmolStr::new(","),
             range: start..end,
         }))
@@ -160,6 +167,7 @@ impl TomlToken {
             let end = start + 1;
             Some(Element::Token(Self {
                 kind: Comma,
+                parent: Ancestor::Root,
                 text: SmolStr::new(","),
                 range: start..end,
             }))
@@ -174,6 +182,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: Colon,
+            parent: Ancestor::Root,
             text: SmolStr::new(":"),
             range: start..end,
         }))
@@ -185,6 +194,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: Dot,
+            parent: Ancestor::Root,
             text: SmolStr::new("."),
             range: start..end,
         }))
@@ -196,6 +206,7 @@ impl TomlToken {
             let end = start + 1;
             Some(Element::Token(Self {
                 kind: Dot,
+                parent: Ancestor::Root,
                 text: SmolStr::new("."),
                 range: start..end,
             }))
@@ -211,6 +222,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: DoubleQuote,
+            parent: Ancestor::Root,
             text: SmolStr::new("\""),
             range: start..end,
         }))
@@ -222,6 +234,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: SingleQuote,
+            parent: Ancestor::Root,
             text: SmolStr::new("\'"),
             range: start..end,
         }))
@@ -233,6 +246,7 @@ impl TomlToken {
         let text = SmolStr::new(&muncher.text()[s..e]);
         Ok(Element::Token(Self {
             kind: Ident,
+            parent: Ancestor::Root,
             text,
             range: s..e,
         }))
@@ -244,6 +258,7 @@ impl TomlToken {
         let text = SmolStr::new(&muncher.text()[s..e]);
         Ok(Element::Token(Self {
             kind: Ident,
+            parent: Ancestor::Root,
             text,
             range: s..e,
         }))
@@ -255,6 +270,7 @@ impl TomlToken {
         let text = SmolStr::new(&muncher.text()[s..e]);
         Ok(Element::Token(Self {
             kind: Ident,
+            parent: Ancestor::Root,
             text,
             range: s..e,
         }))
@@ -267,6 +283,7 @@ impl TomlToken {
 
         Ok(Element::Token(Self {
             kind: CommentText,
+            parent: Ancestor::Root,
             text,
             range: s..e,
         }))
@@ -279,6 +296,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: OpenBrace,
+            parent: Ancestor::Root,
             text: SmolStr::new("["),
             range: start..end,
         }))
@@ -289,6 +307,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: CloseBrace,
+            parent: Ancestor::Root,
             text: SmolStr::new("]"),
             range: start..end,
         }))
@@ -299,6 +318,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: OpenCurly,
+            parent: Ancestor::Root,
             text: SmolStr::new("{"),
             range: start..end,
         }))
@@ -309,6 +329,7 @@ impl TomlToken {
         let end = start + 1;
         Ok(Element::Token(Self {
             kind: CloseCurly,
+            parent: Ancestor::Root,
             text: SmolStr::new("}"),
             range: start..end,
         }))
@@ -322,6 +343,7 @@ impl TomlToken {
         if boolean == "true" || boolean == "false" {
             Ok(Element::Token(Self {
                 kind: Bool,
+                parent: Ancestor::Root,
                 text,
                 range: s..e,
             }))
@@ -346,6 +368,7 @@ impl TomlToken {
             let text = SmolStr::new(int);
             Ok(Element::Token(Self {
                 kind: Integer,
+                parent: Ancestor::Root,
                 text,
                 range: s..e,
             }))
@@ -381,12 +404,9 @@ impl TomlNode {
 
         let text = SmolStr::new(&muncher.text()[s..e]);
         println!("COMMENT {:?}", text);
-        Ok(Element::Node(Self {
-            kind: Comment,
-            text,
-            range: s..e,
-            children,
-        }))
+
+        let cmt = TomlNode::new(Comment, text, s..e, children);
+        Ok(Element::Node(cmt))
     }
 
     fn float(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -402,12 +422,9 @@ impl TomlNode {
 
         let text = SmolStr::new(&muncher.text()[s..e]);
         println!("FLOAT {:?}", text);
-        Ok(Element::Node(Self {
-            kind: Float,
-            text,
-            range: s..e,
-            children,
-        }))
+
+        let float = TomlNode::new(Float, text, s..e, children);
+        Ok(Element::Node(float))
     }
 
     fn date_time(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -434,12 +451,9 @@ impl TomlNode {
         }
         
         println!("DATETIME {:?}", text);
-        Ok(Element::Node(Self {
-            kind: Date,
-            text,
-            range: s..e,
-            children,
-        }))
+
+        let date = TomlNode::new(Date, text, s..e, children);
+        Ok(Element::Node(date))
     }
 
     fn double_str(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -465,12 +479,9 @@ impl TomlNode {
 
         let text = SmolStr::new(&muncher.text()[s..e]);
         // println!("STR {:?}", text);
-        Ok(Element::Node(Self {
-            kind: Str,
-            text,
-            range: s..e,
-            children,
-        }))
+
+        let st = TomlNode::new(Str, text, s..e, children);
+        Ok(Element::Node(st))
     }
 
     fn key(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -510,12 +521,8 @@ impl TomlNode {
         let text = SmolStr::new(&muncher.text()[s..e]);
         println!("KEY {:?}", text);
         if is_valid_key(&text) {
-            Ok(Element::Node(Self {
-                kind: Key,
-                text,
-                range: s..e,
-                children,
-            }))
+            let kv = TomlNode::new(Key, text, s..e, children);
+            Ok(Element::Node(kv))
         } else {
             let (ln, col) = muncher.cursor_position();
                 let msg = "invalid key token".into();
@@ -554,11 +561,7 @@ impl TomlNode {
                     children.push(TomlToken::integer(muncher)?)
                 }
             }
-            None => children.push(Element::Token(TomlToken {
-                kind: EoF,
-                text: SmolStr::default(),
-                range: 0..0,
-            })),
+            None => unimplemented!("found EOF in value"),
             _ => {
                 let msg = "invalid token in key value pairs";
                 let tkn = if let Some(peek) = muncher.peek() {
@@ -576,12 +579,9 @@ impl TomlNode {
 
         let text = SmolStr::new(&muncher.text()[s..e]);
         // println!("VALUE {:?}", text);
-        Ok(Element::Node(Self {
-            kind: Value,
-            text,
-            range: s..e,
-            children,
-        }))
+
+        let kv = TomlNode::new(Value, text, s..e, children);
+        Ok(Element::Node(kv))
     }
 
     fn inline_value(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -610,11 +610,7 @@ impl TomlNode {
                     children.push(TomlToken::integer(muncher)?)
                 }
             }
-            None => children.push(Element::Token(TomlToken {
-                kind: EoF,
-                text: SmolStr::default(),
-                range: 0..0,
-            })),
+            None => unimplemented!("value found EOF"),
             _ => {
                 let msg = "invalid token in key value pairs";
                 let tkn = if let Some(peek) = muncher.peek() {
@@ -632,12 +628,9 @@ impl TomlNode {
 
         let text = SmolStr::new(&muncher.text()[s..e]);
         // println!("VALUE {:?}", text);
-        Ok(Element::Node(Self {
-            kind: Value,
-            text,
-            range: s..e,
-            children,
-        }))
+
+        let val = TomlNode::new(Value, text, s..e, children);
+        Ok(Element::Node(val))
     }
 
     fn key_value(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -652,7 +645,15 @@ impl TomlNode {
         }
 
         let (s, e) = muncher.peek_until_count(|c| cmp_tokens(c, EOL));
+
+        muncher.reset_peek();
+        if muncher.peek() == Some(&'#') {
+            let cmt = TomlNode::comment(muncher)?;
+            return Ok(cmt);       
+        }
+
         children.push(TomlNode::key(muncher)?);
+
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
             children.push(ws);
         }
@@ -660,16 +661,14 @@ impl TomlNode {
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
             children.push(ws);
         }
+
         children.push(TomlNode::value(muncher)?);
 
         let text = SmolStr::new(&muncher.text()[s..e]);
         // println!("{:?}", text);
-        Ok(Element::Node(Self {
-            kind: KeyValue,
-            text,
-            range: s..e,
-            children,
-        }))
+
+        let kv = TomlNode::new(KeyValue, text, s..e, children);
+        Ok(Element::Node(kv))
     }
 
     fn inline_key_value(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -696,12 +695,9 @@ impl TomlNode {
 
         let text = SmolStr::new(&muncher.text()[s..e]);
         // println!("{:?}", text);
-        Ok(Element::Node(Self {
-            kind: KeyValue,
-            text,
-            range: s..e,
-            children,
-        }))
+
+        let inline_kv = TomlNode::new(KeyValue, text, s..e, children);
+        Ok(Element::Node(inline_kv))
     }
 
     fn array_item(muncher: &mut Muncher) -> TomlResult<Option<Element>> {
@@ -726,12 +722,9 @@ impl TomlNode {
         }
 
         let text = SmolStr::new(&muncher.text()[s..e]);
-        Ok(Some(Element::Node(Self {
-            kind: ArrayItem,
-            text,
-            range: s..e,
-            children,
-        })))
+
+        let array_item = TomlNode::new(ArrayItem, text, s..e, children);
+        Ok(Some(Element::Node(array_item)))
     }
 
     fn array(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -752,12 +745,9 @@ impl TomlNode {
         children.push(TomlToken::close_brace(muncher)?);
 
         let text = SmolStr::new(&muncher.text()[s..e]);
-        Ok(Element::Node(Self {
-            kind: Array,
-            text,
-            range: s..e,
-            children,
-        }))
+        
+        let array = TomlNode::new(Array, text, s..e, children);
+        Ok(Element::Node(array))
     }
 
     fn inline_table(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -791,12 +781,9 @@ impl TomlNode {
         let end = muncher.position();
 
         let text = SmolStr::new(&muncher.text()[start..end]);
-        Ok(Element::Node(Self {
-            kind: InlineTable,
-            text,
-            range: start..end,
-            children,
-        }))
+
+        let inline = TomlNode::new(InlineTable, text, start..end, children);
+        Ok(Element::Node(inline))
     }
 
     fn heading(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -827,12 +814,9 @@ impl TomlNode {
         children.push(TomlToken::close_brace(muncher)?);
 
         let text = SmolStr::new(&muncher.text()[s..e]);
-        Ok(Element::Node(Self {
-            kind: Heading,
-            text,
-            range: s..e,
-            children,
-        }))
+
+        let heading = TomlNode::new(Heading, text, s..e, children);
+        Ok(Element::Node(heading))
     }
 
     fn table(muncher: &mut Muncher) -> TomlResult<Element> {
@@ -858,26 +842,9 @@ impl TomlNode {
 
         let end = muncher.position();
         let text = SmolStr::new(&muncher.text()[start..end]);
-        Ok(Element::Node(Self {
-            kind: Table,
-            text,
-            range: start..end,
-            children,
-        }))
-    }
-}
 
-impl Element {
-    fn root(muncher: &mut Muncher) -> TomlResult<Element> {
-        let text = SmolStr::new(muncher.text());
-        let children = Tokenizer::parse_file(muncher)?;
-        let end = text.len();
-        Ok(Element::Node(TomlNode {
-            kind: Root,
-            text,
-            range: 0..end,
-            children,
-        }))
+        let root = TomlNode::new(Table, text, start..end, children);
+        Ok(Element::Node(root))
     }
 }
 
@@ -888,30 +855,39 @@ pub struct Tokenizer {
 impl Tokenizer {
     pub fn parse(input: &str) -> TomlResult<Element> {
         let mut muncher = Muncher::new(input);
-        Ok(Element::root(&mut muncher)?)
+        Tokenizer::parse_file(&mut muncher)
     }
 
     /// It seems the only two top level Elements are key value pairs,
     /// tables and comments
-    fn parse_file(muncher: &mut Muncher) -> TomlResult<Vec<Element>> {
-        let mut elements = Vec::default();
-
+    fn parse_file(muncher: &mut Muncher) -> TomlResult<Element> {
+        let mut children = Vec::default();
+        let text = SmolStr::new(muncher.text());
+        let end = text.len();
         loop {
-            if muncher.is_done() { break; }
-            println!("MAIN LOOP");
+            if muncher.is_done() { 
+                let end = muncher.position();
+                children.push(Element::Token(TomlToken {
+                    kind: EoF,
+                    parent: Ancestor::Root,
+                    text: SmolStr::default(),
+                    range: end..end,
+                }));
+                break;
+            }
             match muncher.peek() {
                 Some('#') => {
                     let cmt = TomlNode::comment(muncher)?;
-                    elements.push(cmt);
+                    children.push(cmt);
                 }
                 Some('[') => {
                     let table = TomlNode::table(muncher)?;
-                    elements.push(table);
+                    children.push(table);
                 }
                 Some(ch) if ch.is_ascii() => {
                     println!("{:?}", ch);
                     let kv = TomlNode::key_value(muncher)?;
-                    elements.push(kv);
+                    children.push(kv);
                 }
                 Some(tkn) => {
                     let msg = "toml file must be key values or tables".into();
@@ -924,8 +900,9 @@ impl Tokenizer {
                 }
                 None => {
                     let end = muncher.position();
-                    elements.push(Element::Token(TomlToken {
+                    children.push(Element::Token(TomlToken {
                         kind: EoF,
+                        parent: Ancestor::Root,
                         text: SmolStr::default(),
                         range: end..end,
                     }));
@@ -933,6 +910,7 @@ impl Tokenizer {
                 }
             }
         }
-        Ok(elements)
+        let root = TomlNode::new(Root, text, 0..end, children);
+        Ok(Element::Node(root))
     }
 }

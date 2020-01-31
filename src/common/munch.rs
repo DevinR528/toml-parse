@@ -465,7 +465,7 @@ mod tests {
         assert_eq!(m.eat(), Some('h'));
 
         let mut idx = 0;
-        while let Some(ch) = m.eat() {
+        while let Some(_ch) = m.eat() {
             idx += 1;
             assert_eq!(m.peek(), chars.get(idx + 1));
         }
@@ -474,7 +474,6 @@ mod tests {
     #[test]
     fn seek_muncher() {
         let input = "hello world";
-        let chars = input.to_string().chars().collect::<Vec<char>>();
         let m = Muncher::new(input);
 
         assert_eq!(m.seek(5), Some("hello".to_string()));
