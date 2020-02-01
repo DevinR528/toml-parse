@@ -5,7 +5,10 @@ mod value;
 
 pub(self) use super::common::{
     err::{self, ParseTomlError, TomlErrorKind, TomlResult},
-    munch::{self, Muncher, ARRAY_ITEMS, BOOL_END, DATE_LIKE, EOL, KEY_END, NUM_END, DATE_CHAR, TIME_CHAR},
+    munch::{
+        self, Muncher, ARRAY_ITEMS, BOOL_END, DATE_CHAR, DATE_LIKE, EOL, KEY_END, NUM_END,
+        TIME_CHAR,
+    },
 };
 
 use parse::Parse;

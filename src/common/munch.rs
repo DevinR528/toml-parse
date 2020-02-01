@@ -60,7 +60,11 @@ impl<'s> Stack<'s> {
             Ok(())
         } else {
             let msg = "bracket mismatch";
-            let tkn = self.stack.get(0).map(|c| format!("{}", c)).unwrap_or(String::default());
+            let tkn = self
+                .stack
+                .get(0)
+                .map(|c| format!("{}", c))
+                .unwrap_or(String::default());
             Err(ParseTomlError::new(
                 msg.into(),
                 TomlErrorKind::UnexpectedToken {
