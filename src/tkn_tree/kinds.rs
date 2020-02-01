@@ -393,7 +393,8 @@ impl TomlToken {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u16)]
 pub enum TomlKind {
     // NODES
     // these are nodes

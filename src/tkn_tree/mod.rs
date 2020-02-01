@@ -5,6 +5,7 @@ pub(self) use super::common::{
 
 mod kinds;
 mod tokenize;
+mod row;
 
 pub use kinds::{TomlKind, TomlNode, TomlToken};
 pub use tokenize::Tokenizer;
