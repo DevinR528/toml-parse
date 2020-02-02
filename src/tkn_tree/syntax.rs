@@ -3,6 +3,7 @@ use rowan::{GreenNode, GreenNodeBuilder, SmolStr};
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
 use super::kinds::TomlKind::{self, *};
 use super::parse_tkns::Tokenizer;
+use super::walk;
 
 impl From<TomlKind> for rowan::SyntaxKind {
     fn from(kind: TomlKind) -> Self {
@@ -27,12 +28,12 @@ pub type SyntaxNode = rowan::SyntaxNode<TomlLang>;
 pub type SyntaxToken = rowan::SyntaxToken<TomlLang>;
 pub type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
 
-pub struct ParseToml {
+pub struct ParsedToml {
     green: rowan::GreenNode,
 }
 
-impl ParseToml {
-    fn syntax(&self) -> SyntaxNode {
+impl ParsedToml {
+    pub fn syntax(&self) -> SyntaxNode {
         SyntaxNode::new_root(self.green.clone())
     }
 }
@@ -43,19 +44,22 @@ pub struct Parser {
 }
 
 impl Parser {
-    fn parse(self) -> TomlResult<ParseToml> {
+    pub fn new() -> Parser {
+        Self {
+            builder: GreenNodeBuilder::new(),
+        }
+    }
+    pub fn parse(self) -> TomlResult<ParsedToml> {
         let green: GreenNode = self.builder.finish();
         // Construct a `SyntaxNode` from `GreenNode`,
         // using errors as the root data.
-        Ok(ParseToml { green: green })
+        Ok(ParsedToml { green: green })
     }
 }
 
-pub fn parse_it(input: &str) -> TomlResult<ParseToml> {
-    let parser = Parser {
-        builder: GreenNodeBuilder::new(),
-    };
-    let parsed = Tokenizer::parse(input, parser)?;
+pub fn parse_it(input: &str) -> TomlResult<ParsedToml> {
+    let parse_builder = Parser::new();
+    let parsed = Tokenizer::parse(input, parse_builder)?;
     parsed.parse()
 }
 
@@ -68,13 +72,10 @@ mod tests {
     fn parents() {
         let file = "[table]\n# hello there";
         let parsed = parse_it(file).expect("parse failed");
-
-        println!("{:#?}", parsed.syntax().first_token());
-
-        // for ele in parsed.walk_with_tokens() {
-        //     println!("{:?}", ele);
-        //     println!("{:?}", ele.ancestors().collect::<Vec<_>>())
-        // }
+        let root = parsed.syntax();
+        for ele in walk::walk(&root) {
+            println!("{:#?}", root.ancestors().collect::<Vec<_>>())
+        }
     }
 
     #[test]

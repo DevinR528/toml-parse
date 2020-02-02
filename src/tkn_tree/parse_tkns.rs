@@ -6,7 +6,7 @@ use super::kinds::TomlKind::{self, *};
 
 use chrono::{NaiveDate, NaiveTime};
 
-use super::row::Parser;
+use super::syntax::Parser;
 use super::kinds::{Element, TomlNode, TomlToken};
 use super::munch::{
     cmp_tokens, Muncher, ARRAY_ITEMS, BOOL_END, DATE_CHAR, DATE_END, DATE_LIKE, DATE_TIME, EOL,
@@ -200,6 +200,7 @@ impl TomlToken {
         let (s, e) = muncher.eat_until_count(|c| cmp_tokens(c, SEG_END));
         // TODO is this more efficient than eat_until to String??
         let text = SmolStr::new(&muncher.text()[s..e]);
+        println!("{:?}", text);
         parser.builder.token(Ident.into(), text);
         Ok(())
     }
@@ -245,7 +246,6 @@ impl TomlToken {
         let boolean = &muncher.text()[s..e];
 
         let text = SmolStr::new(boolean);
-        println!("BOOL {:?}", text);
         if boolean == "true" || boolean == "false" {
             parser.builder.token(Bool.into(), text);
             Ok(())
@@ -420,6 +420,9 @@ impl TomlNode {
         }
     }
 
+    /// Builds `Value` node from `Whitespace` and whatever value node is present
+    /// and adds them as children. this is called for top level key value pairs
+    /// and tables.
     fn value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Value.into());
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
@@ -463,6 +466,8 @@ impl TomlNode {
         Ok(())
     }
 
+    /// Builds `Value` node from `Whitespace` and whatever value node is present
+    /// and adds them as children. This is called for inline tables only.
     fn inline_value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Value.into());
 
@@ -507,8 +512,9 @@ impl TomlNode {
         Ok(())
     }
 
+    /// Builds `KeyValue` node from `Whitespace`, `Key` and whatever value node is present
+    /// and adds them as children.
     fn key_value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
-        println!("KV PAIR");
         if muncher.is_done() {
             todo!("DONE in kv")
         }
@@ -544,6 +550,8 @@ impl TomlNode {
         Ok(())
     }
 
+    /// Builds `KeyValue` node from `Whitespace`, `Key` and whatever value node is present
+    /// and adds them as children. This is only for `InlineTable`s.
     fn inline_key_value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         if muncher.is_done() {
             todo!("DONE in kv")
@@ -571,6 +579,8 @@ impl TomlNode {
         Ok(())
     }
 
+    /// Builds `ArrayItem` node from `Whitespace` and whatever `Value` node is present
+    /// and adds them as children.
     fn array_item(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<Option<()>> {
         if muncher.peek() == Some(&']') {
             return Ok(None)
@@ -583,6 +593,7 @@ impl TomlNode {
         }
 
         TomlNode::value(muncher, parser)?;
+
         if let Some(comma) = TomlToken::maybe_comma(muncher) {
             let (kind, text) = comma.into();
             parser.builder.token(kind.into(), text);
@@ -596,9 +607,10 @@ impl TomlNode {
         Ok(Some(()))
     }
 
+    /// Builds `Array` node from `Whitespace` and whatever `ArrayItem` nodes are present
+    /// and adds them as children.
     fn array(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Array.into());
-        println!("ARRAY");
         TomlToken::open_brace(muncher, parser)?;
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
             let (kind, text) = ws.into();
@@ -612,6 +624,8 @@ impl TomlNode {
         Ok(())
     }
 
+    /// Builds `InlineTable` node from `Whitespace` and whatever `KeyValue` nodes are present
+    /// and adds them as children.
     fn inline_table(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(InlineTable.into());
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
@@ -646,11 +660,13 @@ impl TomlNode {
     /// If `Heading` contains a '.' a `TomlNode` `SegIdent` is produced other wise
     /// a plain `TomlToken` `Ident` is added.
     fn ident_heading(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
-        parser.builder.start_node(SegIdent.into());
+        
         let (s, e) = muncher.peek_until_count(|c| c == &']');
         // TODO is this more efficient than eat_until to String??
         let text = SmolStr::new(&muncher.text()[s..e]);
+        
         if text.contains('"') {
+            parser.builder.start_node(SegIdent.into());
             if text.contains('.') {
                 let mut txt = text.clone();
                 loop {
@@ -697,14 +713,20 @@ impl TomlNode {
             parser.builder.finish_node();
             Ok(())
         } else if text.contains('.') {
+            parser.builder.start_node(SegIdent.into());
+            println!("DOT {:?}", text);
+
             TomlToken::seg_ident(muncher, parser)?;
             TomlToken::dot(muncher, parser)?;
             TomlToken::seg_ident(muncher, parser)?;
 
             // for all segments after the first we loop for each
             for _ in 2..text.split('.').count() {
-                TomlToken::dot(muncher, parser)?;
-                TomlToken::seg_ident(muncher, parser)?;
+                if let Some(dot) = TomlToken::maybe_dot(muncher) {
+                    let (kind, text) = dot.into();
+                    parser.builder.token(kind.into(), text);
+                    TomlToken::seg_ident(muncher, parser)?;
+                }
             }
             parser.builder.finish_node();
             Ok(())
@@ -714,6 +736,8 @@ impl TomlNode {
         }
     }
 
+    /// Builds `Heading` node from `Whitespace` and either `Ident` token or 
+    /// `SegIdent` node and adds them as children.
     fn heading(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Heading.into());
 
@@ -738,11 +762,15 @@ impl TomlNode {
             }
             None => todo!("heading NONE"),
         };
+        muncher.eat_until(|c| c == &']');
+
         TomlToken::close_brace(muncher, parser)?;
         parser.builder.finish_node();
         Ok(())
     }
 
+    /// Builds `Table` node from `Whitespace` and whatever `KeyValue` nodes are present
+    /// and adds them as children.
     fn table(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Table.into());
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
@@ -773,14 +801,27 @@ impl TomlNode {
 pub struct Tokenizer;
 
 impl Tokenizer {
+    /// Returns a wrapper around a `rowan::GreenNodeBuilder` called `Parser`.
+    /// The can be turned into a walk-able `SyntaxNode`.
+    /// 
+    /// # Examples
+    /// ```
+    /// # use toml_parse::{Tokenizer, Parser};
+    /// # use rowan::GreenNodeBuilder;
+    /// let toml = "";
+    /// let parse_builder = Parser::new();
+    /// let parsed = Tokenizer::parse(toml, parse_builder).expect("parse failed");
+    /// let green_node = parsed.parse().expect("parse failed");
+    /// let root_node = green_node.syntax();
+    /// ```
     pub fn parse(input: &str, mut p: Parser) -> TomlResult<Parser> {
         let mut muncher = Muncher::new(input);
         Tokenizer::parse_file(&mut muncher, &mut p)?;
         Ok(p)
     }
 
-    /// It seems the only two top level Elements are key value pairs,
-    /// tables and comments
+    /// It seems the only three top level Kinds are `KeyValue` pairs,
+    /// `Table`s and `Comments`.
     fn parse_file(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Root.into());
         // let text = SmolStr::new(muncher.text());

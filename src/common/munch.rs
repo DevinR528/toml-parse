@@ -228,11 +228,13 @@ impl<'a> Muncher<'a> {
 
     pub(crate) fn seek(&self, count: usize) -> Option<String> {
         let start = self.peek.get();
-        self.peek.set(start + count);
-        if self.peek.get() + 1 >= self.input.len() {
+        let end = start + count;
+        if end > self.input.len() {
+            println!("{:?}", end);
             return None;
         }
-        Some(self.input[start..self.peek.get()].iter().collect())
+        self.peek.set(end);
+        Some(self.input[start..end].iter().collect())
     }
 
     pub(crate) fn eat(&mut self) -> Option<char> {
@@ -510,7 +512,7 @@ mod tests {
         let mut m = Muncher::new(input);
 
         // this will advance the cursor.
-        // this may not further allocat?
+        // this may not further allocate?
         m.eat_until(|c| c == &'\n');
         assert_eq!(m.peek(), Some(&'\n'));
         assert!(m.eat_eol());
