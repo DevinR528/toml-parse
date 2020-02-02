@@ -17,6 +17,7 @@ pub(crate) const INT_END: &[char] = &['\n', '\r', ',', '.', ']', ' ', '}'];
 pub(crate) const BOOL_END: &[char] = &['\n', '\r', ',', ']', ' ', '}'];
 pub(crate) const KEY_END: &[char] = &[' ', ',', '='];
 pub(crate) const IDENT_END: &[char] = &[' ', '\n', '\t', '\r', '='];
+pub(crate) const SEG_END: &[char] = &[' ', '.', ']', '"'];
 
 pub(crate) const DATE_END: &[char] = &['\n', '\r', ',', ']', '}'];
 pub(crate) const DATE_LIKE: &[char] = &['-', '/', ':', 'T'];
@@ -228,7 +229,7 @@ impl<'a> Muncher<'a> {
     pub(crate) fn seek(&self, count: usize) -> Option<String> {
         let start = self.peek.get();
         self.peek.set(start + count);
-        if self.peek.get() + 1 == self.input.len() {
+        if self.peek.get() + 1 >= self.input.len() {
             return None;
         }
         Some(self.input[start..self.peek.get()].iter().collect())

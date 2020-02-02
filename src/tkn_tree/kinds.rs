@@ -169,6 +169,8 @@ pub enum TomlKind {
     KeyValue,
     /// Any valid toml type after a key.
     Value,
+    /// A segmented `Heading` Ident.
+    SegIdent,
     /// A table heading surounded by brackets.
     Heading,
     /// An signed 64 bit EEE 754-2008 "binary64" number.
