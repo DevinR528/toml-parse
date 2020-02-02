@@ -62,21 +62,6 @@ pub struct TomlNode {
     pub(crate) text: SmolStr,
 }
 
-// impl fmt::Debug for TomlNode {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         if f.alternate() {
-//             f.debug_struct("Node")
-//             .field("kind", &self.kind())
-//             .field("parent", &self.parent)
-//             .field("children", &self.children)
-//             .field("range", &self.range)
-//             .finish()
-//         } else {
-//             write!(f, "{:?}@{:?}", self.kind(), self.text_range())
-//         }
-//     }
-// }
-
 impl TomlNode {
     pub fn new(kind: TomlKind, text: SmolStr, children: Vec<Element>) -> Vec<Element> {
         use std::iter::FromIterator;
