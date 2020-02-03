@@ -166,7 +166,7 @@ impl<'a> Muncher<'a> {
                 ln += 1;
             }
         }
-        (ln, col)
+        (col, ln)
     }
 
     /// Resets `Muncher.peek` to current `Muncher.next`
@@ -189,7 +189,7 @@ impl<'a> Muncher<'a> {
         res
     }
 
-    /// Eat tokens until given predicate is true.
+    /// Peek tokens until given predicate is true.
     pub(crate) fn peek_until<P>(&self, mut pred: P) -> impl Iterator<Item = &char>
     where
         P: FnMut(&char) -> bool,
@@ -207,8 +207,8 @@ impl<'a> Muncher<'a> {
         self.input[start..end].iter()
     }
 
-    /// Eat tokens until given predicate is true returns start and end.
-    /// Resets the peek position everytime called.
+    /// Peek tokens until given predicate is true returns start and end.
+    /// Resets the peek position every time called.
     pub(crate) fn peek_until_count<P>(&self, mut pred: P) -> (usize, usize)
     where
         P: FnMut(&char) -> bool,
@@ -222,7 +222,17 @@ impl<'a> Muncher<'a> {
             }
         }
         let end = self.peek.get();
-        self.peek.set(end);
+        (start, end)
+    }
+
+    /// Peeks tokens until needle is found returns start and end.
+    /// Resets the peek position every time called.
+    pub(crate) fn peek_range_of(&self, needle: &str) -> (usize, usize) {
+        let start = self.reset_peek();
+
+        let split = self.text[start..].split(needle).collect::<Vec<_>>();
+
+        let end = start + split[0].chars().count();
         (start, end)
     }
 
@@ -230,7 +240,6 @@ impl<'a> Muncher<'a> {
         let start = self.peek.get();
         let end = start + count;
         if end > self.input.len() {
-            println!("{:?}", end);
             return None;
         }
         self.peek.set(end);
@@ -318,9 +327,20 @@ impl<'a> Muncher<'a> {
         }
     }
 
-    pub(crate) fn eat_quote(&mut self) -> bool {
+    pub(crate) fn eat_double_quote(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'"') {
+            self.eat().is_some()
+        } else {
+            self.reset_peek();
+            false
+        }
+    }
+
+    pub(crate) fn eat_single_quote(&mut self) -> bool {
+        println!("{:?}", self.peek());
+        self.reset_peek();
+        if self.peek() == Some(&'\'') {
             self.eat().is_some()
         } else {
             self.reset_peek();
@@ -404,12 +424,7 @@ impl<'a> Muncher<'a> {
         let end = self.next;
         self.peek.set(end);
         self.next = end;
-        // println!(
-        //     "eat until ({}, {}) {:?}",
-        //     start,
-        //     end,
-        //     &self.input[start..end]
-        // );
+
         self.input[start..end]
             .iter()
             .copied()
@@ -432,12 +447,18 @@ impl<'a> Muncher<'a> {
         let end = self.next;
         self.peek.set(end);
         self.next = end;
-        // println!(
-        //     "eat until ({}, {}) {:?}",
-        //     start,
-        //     end,
-        //     &self.input[start..end]
-        // );
+
+        (start, end)
+    }
+
+    /// Eat tokens until needle is found returns start and end.
+    /// Resets the peek position every time called.
+    pub(crate) fn eat_range_of(&mut self, needle: &str) -> (usize, usize) {
+        let start = self.next;
+        let split = self.text[start..].split(needle).collect::<Vec<_>>();
+
+        let end = start + split[0].chars().count();
+        self.next = end;
         (start, end)
     }
 }

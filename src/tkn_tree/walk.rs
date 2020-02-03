@@ -33,11 +33,14 @@ pub(crate) fn has_newline(node: &SyntaxNode) -> bool {
     walk_tokens(node).any(|it| it.text().contains('\n'))
 }
 pub(crate) fn prev_non_whitespace_sibling(element: &SyntaxElement) -> Option<SyntaxElement> {
-    successors(element.prev_sibling_or_token(), |it| it.prev_sibling_or_token())
-        .find(|it| it.kind() != TomlKind::Whitespace)
+    successors(element.prev_sibling_or_token(), |it| {
+        it.prev_sibling_or_token()
+    })
+    .find(|it| it.kind() != TomlKind::Whitespace)
 }
-
 pub(crate) fn next_non_whitespace_sibling(element: &SyntaxElement) -> Option<SyntaxElement> {
-    successors(element.next_sibling_or_token(), |it| it.next_sibling_or_token())
-        .find(|it| it.kind() != TomlKind::Whitespace)
+    successors(element.next_sibling_or_token(), |it| {
+        it.next_sibling_or_token()
+    })
+    .find(|it| it.kind() != TomlKind::Whitespace)
 }

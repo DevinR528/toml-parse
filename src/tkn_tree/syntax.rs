@@ -79,6 +79,46 @@ mod tests {
     }
 
     #[test]
+    fn single_quote_key() {
+        let file = "[table]\n'key' = \"value\"";
+        let parsed = parse_it(file).expect("parse failed");
+        let root = parsed.syntax();
+        println!("{:#?}", root);
+    }
+
+    #[test]
+    fn double_quote_key() {
+        let file = "[table]\n\"key\" = \"value\"";
+        let parsed = parse_it(file).expect("parse failed");
+        let root = parsed.syntax();
+        println!("{:#?}", root);
+    }
+
+    #[test]
+    fn single_quote_value() {
+        let file = "[table]\nkey = 'value'";
+        let parsed = parse_it(file).expect("parse failed");
+        let root = parsed.syntax();
+        println!("{:#?}", root);
+    }
+
+    #[test]
+    fn triple_quote_value() {
+        let file = "[table]\nkey = \"\"\"value\"\"\"";
+        let parsed = parse_it(file).expect("parse failed");
+        let root = parsed.syntax();
+        println!("{:#?}", root);
+    }
+
+    #[test]
+    fn triple_quote_value_complex() {
+        let file = "[table]\nkey = \"\"\"value \"hello\" bye\n end\"\"\"";
+        let parsed = parse_it(file).expect("parse failed");
+        let root = parsed.syntax();
+        println!("{:#?}", root);
+    }
+
+    #[test]
     fn all_tokens() {
         let file = r#"[deps]
 alpha = "beta"
@@ -89,11 +129,6 @@ inline-table = { date = 1988-02-03T10:32:10, }
         let parsed = parse_it(file).expect("parse failed");
 
         println!("{:#?}", parsed.syntax());
-
-        // for ele in parsed.walk_with_tokens() {
-        //     println!("{:?}", ele);
-        //     println!("{:?}", ele.ancestors().collect::<Vec<_>>())
-        // }
     }
 
     #[test]

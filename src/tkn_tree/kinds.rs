@@ -1,7 +1,6 @@
 use rowan::SmolStr;
 use std::ops::Range;
 
-
 type TextRange = Range<usize>;
 
 /// An enum representing either a `Node` or a `Token`.
@@ -121,6 +120,8 @@ pub enum TomlKind {
     SingleQuote,
     /// Double quote, used for keys and strings.
     DoubleQuote,
+    /// Triple quote, used for literal strings.
+    TripleQuote,
 
     ///
     Plus,

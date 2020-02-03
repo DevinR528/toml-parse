@@ -1,5 +1,5 @@
 [dependencies.alpha]
 version = "0.15"
 
-[dependencies."alpha.hello"]
+[dependencies."alpha.hello".last]
 version = "0.15"
