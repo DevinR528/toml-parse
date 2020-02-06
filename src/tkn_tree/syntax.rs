@@ -1,3 +1,5 @@
+use std::fmt;
+
 use rowan::{GreenNode, GreenNodeBuilder, SmolStr};
 
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
@@ -5,6 +7,13 @@ use super::kinds::TomlKind::{self, *};
 use super::parse_tkns::Tokenizer;
 use super::walk;
 
+pub type SyntaxNode = rowan::SyntaxNode<TomlLang>;
+pub type SyntaxToken = rowan::SyntaxToken<TomlLang>;
+pub type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
+
+pub trait Printer {
+    fn print_text(&self) -> String;
+}
 impl From<TomlKind> for rowan::SyntaxKind {
     fn from(kind: TomlKind) -> Self {
         Self(kind as u16)
@@ -24,9 +33,15 @@ impl rowan::Language for TomlLang {
     }
 }
 
-pub type SyntaxNode = rowan::SyntaxNode<TomlLang>;
-pub type SyntaxToken = rowan::SyntaxToken<TomlLang>;
-pub type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
+impl Printer for SyntaxNode {
+    /// walks tokens collecting each tokens text into a final String.
+    fn print_text(&self) -> String {
+        walk::walk_tokens(self).fold(String::default(), |mut s, tkn| {
+            s.push_str(tkn.text());
+            s
+        })
+    }
+}
 
 pub struct ParsedToml {
     green: rowan::GreenNode,
@@ -73,9 +88,7 @@ mod tests {
         let file = "[table]\n# hello there";
         let parsed = parse_it(file).expect("parse failed");
         let root = parsed.syntax();
-        for ele in walk::walk(&root) {
-            println!("{:#?}", root.ancestors().collect::<Vec<_>>())
-        }
+        assert_eq!(root.print_text(), file)
     }
 
     #[test]
@@ -83,7 +96,7 @@ mod tests {
         let file = "[table]\n'key' = \"value\"";
         let parsed = parse_it(file).expect("parse failed");
         let root = parsed.syntax();
-        println!("{:#?}", root);
+        assert_eq!(root.print_text(), file)
     }
 
     #[test]
@@ -91,7 +104,7 @@ mod tests {
         let file = "[table]\n\"key\" = \"value\"";
         let parsed = parse_it(file).expect("parse failed");
         let root = parsed.syntax();
-        println!("{:#?}", root);
+        assert_eq!(root.print_text(), file)
     }
 
     #[test]
@@ -99,7 +112,7 @@ mod tests {
         let file = "[table]\nkey = 'value'";
         let parsed = parse_it(file).expect("parse failed");
         let root = parsed.syntax();
-        println!("{:#?}", root);
+        assert_eq!(root.print_text(), file)
     }
 
     #[test]
@@ -107,7 +120,7 @@ mod tests {
         let file = "[table]\nkey = \"\"\"value\"\"\"";
         let parsed = parse_it(file).expect("parse failed");
         let root = parsed.syntax();
-        println!("{:#?}", root);
+        assert_eq!(root.print_text(), file)
     }
 
     #[test]
@@ -115,7 +128,7 @@ mod tests {
         let file = "[table]\nkey = \"\"\"value \"hello\" bye\n end\"\"\"";
         let parsed = parse_it(file).expect("parse failed");
         let root = parsed.syntax();
-        println!("{:#?}", root);
+        assert_eq!(root.print_text(), file)
     }
 
     #[test]
@@ -127,8 +140,7 @@ array = [ true, false, true ]
 inline-table = { date = 1988-02-03T10:32:10, }
 "#;
         let parsed = parse_it(file).expect("parse failed");
-
-        println!("{:#?}", parsed.syntax());
+        assert_eq!(parsed.syntax().print_text(), file)
     }
 
     #[test]
@@ -136,31 +148,35 @@ inline-table = { date = 1988-02-03T10:32:10, }
         // ftop.toml is 7 items long
         let input = read_to_string("examp/ftop.toml").expect("file read failed");
         let parsed = parse_it(&input).expect("parse failed");
-        // assert_eq!(parsed.len(), 7);
-        println!("{:#?}", parsed.syntax());
+        assert_eq!(parsed.syntax().print_text(), input)
     }
     #[test]
     fn fend_file() {
         // ftop.toml is 7 items long
         let input = read_to_string("examp/fend.toml").expect("file read failed");
         let parsed = parse_it(&input).expect("parse failed");
-        // assert_eq!(parsed.len(), 7);
-        println!("{:#?}", parsed.syntax());
+        assert_eq!(parsed.syntax().print_text(), input)
     }
     #[test]
     fn seg_file() {
         // ftop.toml is 7 items long
         let input = read_to_string("examp/seg.toml").expect("file read failed");
         let parsed = parse_it(&input).expect("parse failed");
-        // assert_eq!(parsed.len(), 7);
-        println!("{:#?}", parsed.syntax());
+        assert_eq!(parsed.syntax().print_text(), input)
     }
     #[test]
     fn work_file() {
         // ftop.toml is 7 items long
         let input = read_to_string("examp/work.toml").expect("file read failed");
         let parsed = parse_it(&input).expect("parse failed");
-        // assert_eq!(parsed.len(), 7);
-        println!("{:#?}", parsed.syntax());
+        assert_eq!(parsed.syntax().print_text(), input)
+    }
+
+    #[test]
+    fn print_print_text() {
+        // ftop.toml is 7 items long
+        let input = read_to_string("examp/ftop.toml").expect("file read failed");
+        let root = parse_it(&input).expect("parse failed").syntax();
+        assert_eq!(root.print_text(), input)
     }
 }

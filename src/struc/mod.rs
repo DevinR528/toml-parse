@@ -1,43 +1,62 @@
+use std::cmp::Ordering;
+
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+
 pub(self) use super::common::{err, munch};
 pub(self) use super::tkn_tree;
 
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use tkn_tree::{
     parse_it,
     walk::{walk_nodes, walk_non_whitespace, walk_tokens},
-    SyntaxElement, SyntaxNode, SyntaxToken,
-    TomlKind::*,
+    Printer, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
 };
 
-#[derive(Debug)]
+mod date;
+use date::TomlDate;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Toml {
     items: Vec<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Table {
     header: Heading,
-    pairs: Vec<KvPairs>,
+    pairs: Vec<KvPair>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Heading {
     header: String,
     seg: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd)]
 pub struct InTable {
-    pairs: Vec<KvPairs>,
+    pairs: Vec<KvPair>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct KvPairs {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+pub struct KvPair {
     key: Option<String>,
     val: Value,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl Ord for KvPair {
+    fn cmp(&self, other: &KvPair) -> Ordering {
+        match self.key() {
+            Some(key) => {
+                match other.key() {
+                    Some(k) => key.cmp(k),
+                    None => Ordering::Equal,
+                }
+            },
+            None => Ordering::Equal,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
     Bool(bool),
     Int(i64),
@@ -48,37 +67,453 @@ pub enum Value {
     InlineTable(InTable),
     Table(Table),
     Comment(String),
-    KeyValue(Box<KvPairs>),
+    KeyValue(Box<KvPair>),
+    Root,
     Eof,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TomlDate {
-    DateTime(NaiveDateTime),
-    Date(NaiveDate),
-    Time(NaiveTime),
+impl Eq for Value {}
+
+fn strip_start_end(mut input: String, count: usize) -> String {
+    for _ in 0..count {
+        input.remove(0);
+        input.pop();
+    }
+    input
+}
+
+fn integer(s: &str) -> err::TomlResult<Value> {
+    let s = s.replace('_', "");
+    let cleaned = s.trim_start_matches('+');
+    if s.starts_with("0x") {
+        let without_prefix = cleaned.chars().skip(2).collect::<String>();
+        let z = i64::from_str_radix(&without_prefix, 16);
+        Ok(Value::Int(z?))
+    } else if s.starts_with("0o") {
+        let without_prefix = cleaned.chars().skip(2).collect::<String>();
+        let z = i64::from_str_radix(&without_prefix, 8);
+        Ok(Value::Int(z?))
+    } else if s.starts_with("0b") {
+        let without_prefix = cleaned.chars().skip(2).collect::<String>();
+        let z = i64::from_str_radix(&without_prefix, 2);
+        Ok(Value::Int(z?))
+    } else {
+        Ok(Value::Int(cleaned.parse()?))
+    }
+}
+impl Value {
+    // NODES
+    fn into_value(node: SyntaxNode) -> Value {
+        if let Some(val) = node.first_child().map(|n| n.into()) {
+            return val;
+        }
+        // else child is token such as ident, integer, date, ect.
+        node.first_child_or_token()
+            .map(|n| n.as_token().map(|t| t.clone().into()))
+            .flatten()
+            .unwrap()
+    }
+    fn into_array(node: SyntaxNode) -> Value {
+        let array = node.children().map(|n| n.into()).collect();
+        Value::Array(array)
+    }
+    fn into_array_item(node: SyntaxNode) -> Value {
+        node.first_child().map(|n| n.into()).unwrap()
+    }
+    fn into_comment(node: SyntaxNode) -> Value {
+        let mut cmt = node.print_text();
+        Value::Comment(cmt)
+    }
+    fn into_string(node: SyntaxNode) -> Value {
+        let mut string = node.print_text();
+        if string.starts_with("\"\"\"") {
+            string = strip_start_end(string, 3);
+        } else if string.starts_with("\"") {
+            string = strip_start_end(string, 1);
+        } else if string.starts_with("'") {
+            string = strip_start_end(string, 1);
+        }
+        Value::StrLit(string)
+    }
+    fn into_float(node: SyntaxNode) -> Value {
+        let float = node.print_text();
+        let cleaned = float.replace('_', "");
+        Value::Float(cleaned.parse().unwrap())
+    }
+    fn into_date(tkn: SyntaxNode) -> Value {
+        let raw_date = tkn.print_text();
+        let date = TomlDate::from_str(&raw_date);
+        Value::Date(date.unwrap())
+    }
+
+    // TOKENS
+    fn into_int(tkn: SyntaxToken) -> Value {
+        let int = tkn.text();
+        integer(&int).unwrap()
+    }
+    fn into_bool(tkn: SyntaxToken) -> Value {
+        let raw_bool = tkn.text();
+        if raw_bool == "true" {
+            Value::Bool(true)
+        } else {
+            Value::Bool(false)
+        }
+    }
+}
+
+impl Into<Table> for SyntaxNode {
+    fn into(self) -> Table {
+        let header = self.first_child().map(|n| n.into()).unwrap();
+        let pairs = self.children().skip(1).map(|n| n.into()).collect();
+        Table { header, pairs }
+    }
+}
+
+impl Into<Heading> for SyntaxNode {
+    fn into(self) -> Heading {
+        let is_seg = self
+            .children_with_tokens()
+            .map(|el| el.kind())
+            .find(|k| k == &TomlKind::SegIdent)
+            .is_some();
+
+        let mut header = self.print_text();
+        if header.starts_with("[") {
+            header.remove(0);
+        }
+        if header.ends_with("]") {
+            header.pop();
+        }
+        let seg = header.split('.').map(|s| s.into()).collect::<Vec<_>>();
+
+        Heading { header, seg }
+    }
+}
+
+impl Into<InTable> for SyntaxNode {
+    fn into(self) -> InTable {
+        let pairs = self.children().map(|n| n.into()).collect();
+        InTable { pairs }
+    }
+}
+
+impl Into<KvPair> for SyntaxNode {
+    fn into(self) -> KvPair {
+        if self.kind() == TomlKind::Comment {
+            let val = self.into();
+            KvPair { key: None, val }
+        } else {
+            let key = self.first_child().map(|n| n.print_text());
+
+            let val = self
+                .children()
+                .find(|n| n.kind() == TomlKind::Value || n.kind() == TomlKind::Comment)
+                .map(|n| n.into())
+                .unwrap_or(Value::Eof);
+
+            KvPair { key, val }
+        }
+    }
+}
+
+impl Into<Value> for SyntaxNode {
+    fn into(self) -> Value {
+        // println!("INTO {:#?}", self);
+        match self.kind() {
+            TomlKind::Root => Value::Root,
+            TomlKind::Table => Value::Table(self.into()),
+            TomlKind::KeyValue => Value::KeyValue(Box::new(self.into())),
+            TomlKind::InlineTable => Value::InlineTable(self.into()),
+            TomlKind::Array => Value::into_array(self),
+            TomlKind::ArrayItem => Value::into_array_item(self),
+            TomlKind::Value => Value::into_value(self),
+            TomlKind::Date => Value::into_date(self),
+            TomlKind::Comment => Value::into_comment(self),
+            TomlKind::Str => Value::into_string(self),
+            TomlKind::Float => Value::into_float(self),
+            _ => unreachable!("may need to add nodes"),
+        }
+    }
+}
+
+impl Into<Value> for SyntaxToken {
+    fn into(self) -> Value {
+        // println!("INTO");
+        match self.kind() {
+            TomlKind::Integer => Value::into_int(self),
+            TomlKind::Bool => Value::into_bool(self),
+            _ => unreachable!("may need to add nodes"),
+        }
+    }
+}
+
+impl Value {
+    //TODO how to handle probably not panic
+    /// Returns a reference to `InTable` if `self` is an
+    /// inline table, otherwise this will panic
+    pub fn as_inline_table(&self) -> Option<&InTable> {
+        match self {
+            Value::InlineTable(table) => Some(table),
+            _ => None,
+        }
+    }
+    pub fn as_table(&self) -> Option<&Table> {
+        match self {
+            Value::Table(table) => Some(table),
+            _ => None,
+        }
+    }
+    pub fn as_key_value(&self) -> Option<&KvPair> {
+        match self {
+            Value::KeyValue(kv) => Some(kv),
+            _ => None,
+        }
+    }
+    pub fn as_array(&self) -> Option<&[Value]> {
+        match self {
+            Value::Array(array) => Some(array),
+            _ => None,
+        }
+    }
+
+    pub fn sort_string_array(&mut self) {
+        match self {
+            Value::Array(array) => {
+                let all_str = array.iter().all(|item| match item {
+                    Value::StrLit(_) => true,
+                    _ => false,
+                });
+
+                if !all_str { return; }
+
+                array.sort_by(|item, other| match item {
+                    Value::StrLit(s) => {
+                        match other {
+                            Value::StrLit(o) => s.cmp(o),
+                            _ => unreachable!(),
+                        }
+                    },
+                    _ => unreachable!(),
+                })
+            },
+            _ => return,
+        }
+    }
+}
+
+impl KvPair {
+    fn key_match(&self, key: &str) -> bool {
+        self.key.as_ref().map(|k| k == key) == Some(true)
+    }
+
+    pub fn key(&self) -> Option<&str> {
+        self.key.as_deref()
+    }
+    pub fn value(&self) -> &Value {
+        &self.val
+    }
+    pub fn value_mut(&mut self) -> &mut Value {
+        &mut  self.val
+    }
+}
+
+impl Table {
+    /// The heading of the given `Table`.
+    pub fn header(&self) -> &str {
+        &self.header.header
+    }
+    /// The segments of the heading of a given `Table`.
+    pub fn segments(&self) -> &[String] {
+        &self.header.seg
+    }
+    /// The number of items in this `Table`.
+    pub fn item_len(&self) -> usize {
+        self.pairs.len()
+    }
+    /// Number of segments the header is broken into.
+    ///
+    /// ```ignore
+    /// [this.is.segmented]
+    /// key = "value"
+    /// ```
+    pub fn seg_len(&self) -> usize {
+        self.header.seg.len()
+    }
+    /// The `KvPair` this table holds as a slice.
+    pub fn items(&self) -> &[KvPair] {
+        &self.pairs
+    }
+
+    /// Returns `KvPair` that matches given key.
+    pub fn get_key_value(&self, key: &str) -> Option<&KvPair> {
+        self.pairs.iter().find(|pair| pair.key_match(key))
+    }
+    /// Returns `Value` that matches given key.
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.pairs.iter().find(|pair| pair.key_match(key)).map(|pair| pair.value())
+    }
+
+    /// Returns `Value` that matches given key.
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
+        self.pairs.iter_mut().find(|pair| pair.key_match(key)).map(|pair| pair.value_mut())
+    }
+
+    pub fn sort(&mut self) {
+        self.pairs.sort()
+    }
+
+}
+
+impl InTable {
+    /// Number of `KvPair's in given inline table.
+    pub fn len(&self) -> usize {
+        self.pairs.len()
+    }
+    /// Returns true if `InTable` has no `KvPair`s.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    /// Returns the `Value` that matches given key.
+    ///
+    /// # Example
+    /// ```
+    /// use toml_parse::{Toml, Value};
+    ///
+    /// let input = "examp = { first = 1, second = 2 }";
+    /// let toml = Toml::new(input);
+    ///
+    /// if let Some(Value::InlineTable(inline)) = toml.get_bare_value("examp") {
+    ///     assert_eq!(inline.get("second"), Some(&Value::Int(2)));
+    ///     assert_eq!(inline.get("first"), Some(&Value::Int(1)));
+    /// }
+    /// ```
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.pairs
+            .iter()
+            .find(|pair| pair.key_match(key))
+            .map(|pair| pair.value())
+    }
 }
 
 impl Toml {
+    /// Create structured toml objects from valid toml `&str`
     pub fn new(input: &str) -> Toml {
         let root = parse_it(input).expect("parse failed").syntax();
-        dbg!(root);
+
         Self {
-            items: Vec::default(),
+            items: root.children().map(|node| node.into()).collect(),
         }
+    }
+
+    /// The number of items found in a parsed toml file.
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns a reference to the `Table` that matches `heading`.
+    pub fn get_table(&self, heading: &str) -> Option<&Table> {
+        self.iter()
+            .find(|val| match val {
+                Value::Table(tab) => tab.header() == heading,
+                _ => false,
+            })
+            .map(|table| {
+                if let Value::Table(tab) = table {
+                    Some(tab)
+                } else {
+                    None
+                }
+            })
+            .flatten()
+    }
+
+    /// Returns a mutable `Table` that matches `heading`.
+    pub fn get_table_mut(&mut self, heading: &str) -> Option<&mut Table> {
+        self.iter_mut()
+            .find(|val| match val {
+                Value::Table(tab) => tab.header() == heading,
+                _ => false,
+            })
+            .map(|table| {
+                if let Value::Table(tab) = table {
+                    Some(tab)
+                } else {
+                    None
+                }
+            })
+            .flatten()
+    }
+
+    /// Returns a mutable `Table` that contains `heading` or heading fragment.
+    pub fn get_contains_mut(&mut self, heading: &str) -> Vec<&mut Table> {
+        self.iter_mut()
+            .filter(|val| match val {
+                Value::Table(tab) => tab.header().contains(heading),
+                _ => false,
+            })
+            .flat_map(|table| {
+                if let Value::Table(tab) = table {
+                    Some(tab)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Returns any bare value with `key` as its key.
+    ///
+    /// ```ignore
+    /// // no header these key value pairs are not part of a table.
+    /// key = value
+    /// ```
+    pub fn get_bare_value(&self, key: &str) -> Option<&Value> {
+        self.iter()
+            .find(|val| match val {
+                Value::KeyValue(kv) => kv.key() == Some(key),
+                _ => false,
+            })
+    }
+
+    pub fn sort_matching(&mut self, heading: &str) {
+        self.items.sort_by(|tab, other| match tab {
+            Value::Table(tab) => {
+                if tab.header().contains(heading) {
+                    match other {
+                        Value::Table(other) => {
+                            if other.header().contains(heading) {
+                                tab.segments().last().cmp(&other.segments().last())
+                            } else {
+                                Ordering::Equal
+                            }
+                        },
+                        _ => Ordering::Equal
+
+                    }
+                } else {
+                    Ordering::Equal
+                }
+            },
+            _ => Ordering::Equal
+        })
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Value> {
+        self.items.iter()
+    }
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Value> {
+        self.items.iter_mut()
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[test]
-    fn start_small() {
-        let file = "[table]\nkey = \"value\"";
-
-        let toml = Toml::new(file);
-    }
+    use std::fs::read_to_string;
 
     #[test]
     fn into_structured() {
@@ -88,7 +523,124 @@ number = 1234
 array = [ true, false, true ]
 inline-table = { date = 1988-02-03T10:32:10, }
 "#;
-
         let toml = Toml::new(file);
+        assert!(toml.get_table("deps").is_some());
+    }
+
+    #[test]
+    fn ftop_file_struc() {
+        let input = read_to_string("examp/ftop.toml").expect("file read failed");
+        let parsed = Toml::new(&input);
+
+        assert_eq!(parsed.len(), 5);
+    }
+    #[test]
+    fn fend_file_struc() {
+        let input = read_to_string("examp/fend.toml").expect("file read failed");
+        let parsed = Toml::new(&input);
+
+        assert_eq!(parsed.len(), 6);
+        // println!("{:#?}", parsed.len());
+    }
+    #[test]
+    fn seg_file_struc() {
+        let input = read_to_string("examp/seg.toml").expect("file read failed");
+        let parsed = Toml::new(&input);
+
+        assert_eq!(parsed.len(), 2);
+        // println!("{:#?}", parsed.len());
+    }
+    #[test]
+    fn work_file_struc() {
+        let input = read_to_string("examp/work.toml").expect("file read failed");
+        let parsed = Toml::new(&input);
+        let members = parsed.get_table("workspace").unwrap().get("members").unwrap();
+
+        assert_eq!(members.as_array().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn all_value_types() {
+        let file = r#"[deps]
+alpha = "beta"
+number = 1234
+array = [ true, false, true ]
+inline-table = { date = 1988-02-03T10:32:10, }
+"#;
+        let parsed = Toml::new(file);
+        assert_eq!(parsed.len(), 1);
+        let tab = parsed.get_table("deps").unwrap();
+        assert_eq!(tab.header(), "deps");
+        assert_eq!(tab.get("number").unwrap(), &Value::Int(1234));
+    }
+
+    #[test]
+    fn docs() {
+        let input = "examp = { first = 1, second = 2 }";
+        let toml = Toml::new(input);
+        println!("{:#?}", toml);
+        if let Some(Value::KeyValue(kv)) = toml.get_bare_value("examp") {
+            let inline = kv.value().as_inline_table();
+            assert_eq!(inline.unwrap().get("second"), Some(&Value::Int(2)));
+            assert_eq!(inline.unwrap().get("first"), Some(&Value::Int(1)));
+        } else {
+            panic!("bare key value not found")
+        }
+    }
+
+    #[test]
+    fn sort_ftop() {
+        let input = read_to_string("examp/ftop.toml").expect("file read failed");
+        let mut parsed = Toml::new(&input);
+        let parse_cmp = parsed.clone();
+        assert_eq!(parsed, parse_cmp);
+        {
+            let mut deps = parsed.get_table_mut("dependencies").unwrap();
+            deps.sort();
+        }
+        parsed.sort_matching("dependencies.");
+        assert_ne!(parsed, parse_cmp);
+    }
+    #[test]
+    fn sort_fend() {
+        let input = read_to_string("examp/fend.toml").expect("file read failed");
+        let mut parsed = Toml::new(&input);
+        let parse_cmp = parsed.clone();
+        assert_eq!(parsed, parse_cmp);
+        {
+            let mut deps = parsed.get_table_mut("dependencies").unwrap();
+            deps.sort();
+        }
+        parsed.sort_matching("dependencies.");
+        assert_ne!(parsed, parse_cmp);
+    }
+
+    #[test]
+    fn sort_win() {
+        let input = read_to_string("examp/win.toml").expect("file read failed");
+        let mut parsed = Toml::new(&input);
+        let parse_cmp = parsed.clone();
+        assert_eq!(parsed, parse_cmp);
+        {
+            // sorts items of a table
+            let mut deps = parsed.get_table_mut("dependencies").unwrap();
+            deps.sort();
+        }
+        // sorts tables by last segment
+        parsed.sort_matching("dependencies.");
+        assert_ne!(parsed, parse_cmp);
+    }
+
+    #[test]
+    fn sort_work() {
+        let input = read_to_string("examp/work.toml").expect("file read failed");
+        let mut parsed = Toml::new(&input);
+        let mut members = parsed.get_table_mut("workspace").unwrap().get_mut("members").unwrap();
+        let mut mem_cmp = members.clone();
+        assert_eq!(*members, mem_cmp);
+        members.sort_string_array();
+        assert_ne!(*members, mem_cmp);
+        mem_cmp.sort_string_array();
+        assert_eq!(*members, mem_cmp);
     }
 }

@@ -38,7 +38,6 @@ fn is_valid_datetime(s: &str) -> TomlResult<bool> {
                     let fractional = time[2].split('.').collect::<Vec<_>>();
                     (fractional[0].parse()?, fractional[1].parse()?)
                 };
-                println!("has fractional seconds {:?} {:?}", sec, milli);
                 NaiveTime::from_hms_milli(time[0].parse()?, time[1].parse()?, sec, milli);
             } else {
                 NaiveTime::from_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?);
@@ -208,7 +207,6 @@ impl TomlToken {
     fn ident_seg(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         let (s, e) = muncher.eat_until_count(|c| cmp_tokens(c, SEG_END));
         let text = SmolStr::new(&muncher.text()[s..e]);
-        println!("{:?}", text);
         parser.builder.token(Ident.into(), text);
         Ok(())
     }
@@ -223,7 +221,6 @@ impl TomlToken {
 
     fn ident_triple_str(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         let (s, e) = muncher.eat_range_of("\"\"\"");
-        println!("{} {}", muncher.text().chars().count(), e);
         let text = SmolStr::new(&muncher.text()[s..e]);
         parser.builder.token(Ident.into(), text);
         Ok(())
@@ -417,7 +414,6 @@ impl TomlNode {
         }
 
         if muncher.seek(2).map(|s| s == "\"\"") == Some(true) {
-            println!("TRIPLE");
             TomlToken::triple_quote(muncher, parser)?;
             TomlToken::ident_triple_str(muncher, parser)?;
             TomlToken::triple_quote(muncher, parser)?;
@@ -459,7 +455,6 @@ impl TomlNode {
         }?;
 
         let text = SmolStr::new(&muncher.text()[s..e]);
-        println!("{:?}", text);
         if is_valid_key(&text) {
             parser.builder.finish_node();
             Ok(())
@@ -572,19 +567,19 @@ impl TomlNode {
     /// and adds them as children.
     fn key_value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         if muncher.is_done() {
-            todo!("DONE in kv")
+            unreachable!("BUG tokenizer should never hit DONE in key value")
         }
+
+        if muncher.peek() == Some(&'#') {
+            TomlNode::comment(muncher, parser)?;
+            return Ok(());
+        }
+
         parser.builder.start_node(KeyValue.into());
 
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
             let (kind, text) = ws.into();
             parser.builder.token(kind.into(), text)
-        }
-
-        if muncher.peek() == Some(&'#') {
-            TomlNode::comment(muncher, parser)?;
-            parser.builder.finish_node();
-            return Ok(());
         }
 
         TomlNode::key(muncher, parser)?;
@@ -610,7 +605,7 @@ impl TomlNode {
     /// and adds them as children. This is only for `InlineTable`s.
     fn inline_key_value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         if muncher.is_done() {
-            todo!("DONE in kv")
+            unreachable!("BUG tokenizer should never hit DONE in inline key value")
         }
         parser.builder.start_node(KeyValue.into());
 
@@ -743,7 +738,6 @@ impl TomlNode {
                             parser.builder.token(kind.into(), text)
                         }
                         if let Some(idx) = txt.chars().position(dot_index) {
-                            println!("{:?}", txt.split_at(idx));
                             txt = SmolStr::from(txt.split_at(idx).1);
                         } else {
                             break;
@@ -755,7 +749,6 @@ impl TomlNode {
                             parser.builder.token(kind.into(), text)
                         }
                         if let Some(idx) = txt.chars().position(dot_index) {
-                            println!("{:?}", txt.split_at(idx));
                             txt = SmolStr::from(txt.split_at(idx + 1).1);
                         } else {
                             break;
@@ -769,7 +762,6 @@ impl TomlNode {
             Ok(())
         } else if text.contains('.') {
             parser.builder.start_node(SegIdent.into());
-            println!("DOT {:?}", text);
 
             TomlToken::ident_seg(muncher, parser)?;
             TomlToken::dot(muncher, parser)?;
@@ -836,7 +828,8 @@ impl TomlNode {
 
         TomlNode::heading(muncher, parser)?;
         loop {
-            if muncher.seek(4).map(|s| s.contains('[')) == Some(true) {
+            
+            if muncher.seek(5).map(|s| s.contains('[')) == Some(true) {
                 break;
             }
             if let Some(ws) = TomlToken::maybe_whitespace(muncher) {

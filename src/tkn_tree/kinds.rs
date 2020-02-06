@@ -105,10 +105,6 @@ pub enum TomlKind {
     // here down
     /// the text of a comment.
     CommentText = 0,
-    /// Toml date
-    /// TODO this is one of with offset, without, local,
-    /// time, date and datetime.
-    Date,
     /// A signed 64 bit number.
     Integer,
     /// True or false.
@@ -156,32 +152,37 @@ pub enum TomlKind {
 
     // NODES
     // these are nodes
-    /// A toml array.
-    Array,
-    ///
-    ArrayItem,
-    /// A toml table consisting of a heading and key
-    /// value pairs.
+    //
     Table,
+    /// A table heading surounded by brackets.
+    Heading,
+    /// A segmented `Heading` Ident.
+    SegIdent,
     /// An inline table where the key is the "heading" and
     /// key value pairs inside of curly braces.
     InlineTable,
     /// A key and a value, any other valid toml type.
     KeyValue,
+    /// A key either `Ident` or double quoted.
+    Key,
     /// Any valid toml type after a key.
     Value,
-    /// A segmented `Heading` Ident.
-    SegIdent,
-    /// A table heading surounded by brackets.
-    Heading,
+    /// A toml array.
+    Array,
+    ///
+    ArrayItem,
+    /// Toml date
+    /// TODO this is one of with offset, without, local,
+    /// time, date and datetime.
+    Date,
+    /// A toml table consisting of a heading and key
+    /// value pairs.
     /// An signed 64 bit EEE 754-2008 "binary64" number.
     Float,
     /// One of three string types, literal single quote,
     /// normal double quote and literal triple double quote.
     /// (like python doc comments)
     Str,
-    /// A key either `Ident` or double quoted.
-    Key,
     /// A comment in the toml file, a `Hash` token followed by `CommentText`.
     Comment,
     /// the "empty" root node representing a whole file.
