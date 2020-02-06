@@ -68,8 +68,7 @@ impl<'s> Stack<'s> {
             let tkn = self
                 .stack
                 .get(0)
-                .map(|c| format!("{}", c))
-                .unwrap_or(String::default());
+                .map(|c| format!("{}", c)).unwrap_or_default();
             Err(ParseTomlError::new(
                 msg.into(),
                 TomlErrorKind::UnexpectedToken {

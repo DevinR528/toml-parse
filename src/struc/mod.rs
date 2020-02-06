@@ -103,7 +103,7 @@ fn integer(s: &str) -> err::TomlResult<Value> {
 }
 impl Value {
     // NODES
-    fn into_value(node: SyntaxNode) -> Value {
+    fn node_to_value(node: SyntaxNode) -> Value {
         if let Some(val) = node.first_child().map(|n| n.into()) {
             return val;
         }
@@ -113,45 +113,43 @@ impl Value {
             .flatten()
             .unwrap()
     }
-    fn into_array(node: SyntaxNode) -> Value {
+    fn node_to_array(node: SyntaxNode) -> Value {
         let array = node.children().map(|n| n.into()).collect();
         Value::Array(array)
     }
-    fn into_array_item(node: SyntaxNode) -> Value {
+    fn node_to_array_item(node: SyntaxNode) -> Value {
         node.first_child().map(|n| n.into()).unwrap()
     }
-    fn into_comment(node: SyntaxNode) -> Value {
+    fn node_to_comment(node: SyntaxNode) -> Value {
         let mut cmt = node.print_text();
         Value::Comment(cmt)
     }
-    fn into_string(node: SyntaxNode) -> Value {
+    fn node_to_string(node: SyntaxNode) -> Value {
         let mut string = node.print_text();
         if string.starts_with("\"\"\"") {
             string = strip_start_end(string, 3);
-        } else if string.starts_with("\"") {
-            string = strip_start_end(string, 1);
-        } else if string.starts_with("'") {
+        } else if string.starts_with('\"') || string.starts_with('\'') {
             string = strip_start_end(string, 1);
         }
         Value::StrLit(string)
     }
-    fn into_float(node: SyntaxNode) -> Value {
+    fn node_to_float(node: SyntaxNode) -> Value {
         let float = node.print_text();
         let cleaned = float.replace('_', "");
         Value::Float(cleaned.parse().unwrap())
     }
-    fn into_date(tkn: SyntaxNode) -> Value {
+    fn node_to_date(tkn: SyntaxNode) -> Value {
         let raw_date = tkn.print_text();
         let date = TomlDate::from_str(&raw_date);
         Value::Date(date.unwrap())
     }
 
     // TOKENS
-    fn into_int(tkn: SyntaxToken) -> Value {
+    fn token_to_int(tkn: SyntaxToken) -> Value {
         let int = tkn.text();
         integer(&int).unwrap()
     }
-    fn into_bool(tkn: SyntaxToken) -> Value {
+    fn token_to_bool(tkn: SyntaxToken) -> Value {
         let raw_bool = tkn.text();
         if raw_bool == "true" {
             Value::Bool(true)
@@ -174,14 +172,13 @@ impl Into<Heading> for SyntaxNode {
         let is_seg = self
             .children_with_tokens()
             .map(|el| el.kind())
-            .find(|k| k == &TomlKind::SegIdent)
-            .is_some();
+            .any(|k| k == TomlKind::SegIdent);
 
         let mut header = self.print_text();
-        if header.starts_with("[") {
+        if header.starts_with('[') {
             header.remove(0);
         }
-        if header.ends_with("]") {
+        if header.ends_with(']') {
             header.pop();
         }
         let seg = header.split('.').map(|s| s.into()).collect::<Vec<_>>();
@@ -224,13 +221,13 @@ impl Into<Value> for SyntaxNode {
             TomlKind::Table => Value::Table(self.into()),
             TomlKind::KeyValue => Value::KeyValue(Box::new(self.into())),
             TomlKind::InlineTable => Value::InlineTable(self.into()),
-            TomlKind::Array => Value::into_array(self),
-            TomlKind::ArrayItem => Value::into_array_item(self),
-            TomlKind::Value => Value::into_value(self),
-            TomlKind::Date => Value::into_date(self),
-            TomlKind::Comment => Value::into_comment(self),
-            TomlKind::Str => Value::into_string(self),
-            TomlKind::Float => Value::into_float(self),
+            TomlKind::Array => Value::node_to_array(self),
+            TomlKind::ArrayItem => Value::node_to_array_item(self),
+            TomlKind::Value => Value::node_to_value(self),
+            TomlKind::Date => Value::node_to_date(self),
+            TomlKind::Comment => Value::node_to_comment(self),
+            TomlKind::Str => Value::node_to_string(self),
+            TomlKind::Float => Value::node_to_float(self),
             _ => unreachable!("may need to add nodes"),
         }
     }
@@ -240,8 +237,8 @@ impl Into<Value> for SyntaxToken {
     fn into(self) -> Value {
         // println!("INTO");
         match self.kind() {
-            TomlKind::Integer => Value::into_int(self),
-            TomlKind::Bool => Value::into_bool(self),
+            TomlKind::Integer => Value::token_to_int(self),
+            TomlKind::Bool => Value::token_to_bool(self),
             _ => unreachable!("may need to add nodes"),
         }
     }
@@ -277,26 +274,23 @@ impl Value {
     }
 
     pub fn sort_string_array(&mut self) {
-        match self {
-            Value::Array(array) => {
-                let all_str = array.iter().all(|item| match item {
-                    Value::StrLit(_) => true,
-                    _ => false,
-                });
+        if let Value::Array(array) = self {
+            let all_str = array.iter().all(|item| match item {
+                Value::StrLit(_) => true,
+                _ => false,
+            });
 
-                if !all_str { return; }
+            if !all_str { return; }
 
-                array.sort_by(|item, other| match item {
-                    Value::StrLit(s) => {
-                        match other {
-                            Value::StrLit(o) => s.cmp(o),
-                            _ => unreachable!(),
-                        }
-                    },
-                    _ => unreachable!(),
-                })
-            },
-            _ => return,
+            array.sort_by(|item, other| match item {
+                Value::StrLit(s) => {
+                    match other {
+                        Value::StrLit(o) => s.cmp(o),
+                        _ => unreachable!(),
+                    }
+                },
+                _ => unreachable!(),
+            })
         }
     }
 }

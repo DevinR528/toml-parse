@@ -62,12 +62,6 @@ pub struct TomlNode {
 }
 
 impl TomlNode {
-    pub fn new(kind: TomlKind, text: SmolStr, children: Vec<Element>) -> Vec<Element> {
-        use std::iter::FromIterator;
-        let new = Element::Node(TomlNode { kind, text });
-        Vec::from_iter(Some(new).into_iter().chain(children.into_iter()))
-    }
-
     /// Returns self wrapped in `Element`, this clones self.
     pub fn to_ele(&self) -> Element {
         Element::Node(self.clone())
@@ -84,6 +78,7 @@ pub struct TomlToken {
 }
 
 impl TomlToken {
+    /// Returns self wrapped in `Element`, this clones self.
     pub fn to_ele(&self) -> Element {
         Element::Token(self.clone())
     }

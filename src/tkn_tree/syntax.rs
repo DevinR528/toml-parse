@@ -58,6 +58,12 @@ pub struct Parser {
     pub(crate) builder: GreenNodeBuilder<'static>,
 }
 
+impl Default for Parser {
+    fn default() -> Self {
+        Parser::new()
+    }
+}
+
 impl Parser {
     pub fn new() -> Parser {
         Self {
@@ -68,7 +74,7 @@ impl Parser {
         let green: GreenNode = self.builder.finish();
         // Construct a `SyntaxNode` from `GreenNode`,
         // using errors as the root data.
-        Ok(ParsedToml { green: green })
+        Ok(ParsedToml { green })
     }
 }
 

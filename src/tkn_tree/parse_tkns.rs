@@ -32,7 +32,7 @@ fn is_valid_datetime(s: &str) -> TomlResult<bool> {
     let dt = s.split(DATE_TIME).collect::<Vec<_>>();
     if dt.len() == 1 {
         if dt[0].contains(':') {
-            let time = dt[0].split(":").collect::<Vec<_>>();
+            let time = dt[0].split(':').collect::<Vec<_>>();
             if time[2].contains('.') {
                 let (sec, milli) = {
                     let fractional = time[2].split('.').collect::<Vec<_>>();
@@ -44,7 +44,7 @@ fn is_valid_datetime(s: &str) -> TomlResult<bool> {
             };
             Ok(true)
         } else {
-            let date = dt[0].split("-").collect::<Vec<_>>();
+            let date = dt[0].split('-').collect::<Vec<_>>();
 
             assert_eq!(date.len(), 3);
 
@@ -718,7 +718,7 @@ impl TomlNode {
         if text.contains('"') {
             parser.builder.start_node(SegIdent.into());
             if text.contains('.') {
-                let mut txt = text.clone();
+                let mut txt = text;
                 loop {
                     // TODO if not in loop `value moved here, in previous iteration of loop` error BOOO
                     let mut in_str = false;
