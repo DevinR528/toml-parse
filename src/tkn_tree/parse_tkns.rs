@@ -1,4 +1,5 @@
 use rowan::SmolStr;
+use muncher::Muncher;
 
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
 use super::kinds::TomlKind::{self, *};
@@ -6,8 +7,8 @@ use super::kinds::TomlKind::{self, *};
 use chrono::{NaiveDate, NaiveTime};
 
 use super::kinds::{Element, TomlNode, TomlToken};
-use super::munch::{
-    cmp_tokens, Muncher, ARRAY_ITEMS, BOOL_END, DATE_CHAR, DATE_END, DATE_LIKE, DATE_TIME, EOL,
+use super::common::{
+    cmp_tokens, ARRAY_ITEMS, BOOL_END, DATE_CHAR, DATE_END, DATE_LIKE, DATE_TIME, EOL,
     IDENT_END, INLINE_ITEMS, INT_END, KEY_END, NUM_END, SEG_END, TIME_CHAR, WHITESPACE,
 };
 use super::syntax::Parser;

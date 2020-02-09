@@ -1,29 +1,11 @@
+// abc
+// def
+// ghi
 use std::cell::Cell;
-use std::ops::Range;
 
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
 
-type TextRange = Range<usize>;
 
-pub(crate) const EOL: &[char] = &['\n', '\r'];
-pub(crate) const WHITESPACE: &[char] = &[' ', '\n', '\t', '\r'];
-
-pub(crate) const QUOTE: &[char] = &['\"', '\''];
-pub(crate) const ARRAY_ITEMS: &[char] = &[',', ']'];
-pub(crate) const INLINE_ITEMS: &[char] = &[',', '}'];
-
-pub(crate) const NUM_END: &[char] = &['\n', '\r', ',', ']', ' ', '}'];
-pub(crate) const INT_END: &[char] = &['\n', '\r', ',', '.', ']', ' ', '}'];
-pub(crate) const BOOL_END: &[char] = &['\n', '\r', ',', ']', ' ', '}'];
-pub(crate) const KEY_END: &[char] = &[' ', ',', '='];
-pub(crate) const IDENT_END: &[char] = &[' ', '\n', '\t', '\r', '='];
-pub(crate) const SEG_END: &[char] = &[' ', '.', ']', '"'];
-
-pub(crate) const DATE_END: &[char] = &['\n', '\r', ',', ']', '}'];
-pub(crate) const DATE_LIKE: &[char] = &['-', '/', ':', 'T'];
-pub(crate) const DATE_TIME: &[char] = &[' ', 'T'];
-pub(crate) const DATE_CHAR: &[char] = &['-'];
-pub(crate) const TIME_CHAR: &[char] = &[':', '+'];
 
 /// TODO fix pass by ref
 #[allow(clippy::trivially_copy_pass_by_ref)]
@@ -39,6 +21,22 @@ pub struct Stack<'a> {
 }
 
 impl<'s> Stack<'s> {
+    /// Creates a `Stack` to parse braced input making sure matching braces
+    /// are found. The `Stack` will not advance `Muncher`s peek or next.
+    ///
+    /// # Example
+    /// ```
+    /// 
+    /// ```
+    /// use toml_parse::Muncher;
+    /// 
+    /// let input = "([{}])\n";
+    /// let mut stack = Stack::new(input);
+    /// for ch in input.chars() {
+    ///     stack.eat(*ch);
+    /// }
+    /// assert!(stack.is_matched())
+    /// ```
     pub fn new(input: &'s str, pos: (usize, usize)) -> Stack<'s> {
         Self {
             input,
@@ -46,22 +44,37 @@ impl<'s> Stack<'s> {
             pos,
         }
     }
-
+    /// Eat the token if `input` is an open brace or pop if close
+    /// brace is found.
+    /// 
     pub fn eat(&mut self, input: char) -> TomlResult<()> {
         match input {
             '{' | '[' | '(' => self.push(input),
-            '}' | ']' | ')' => self.pop(),
+            '}' | ']' | ')' => self.pop(input),
             _ => Ok(()),
         }
     }
+    /// Internal matcher to verify close brace being popped is a match
+    /// for the open brace being removed.
+    fn brace_match(&mut self, input: char) -> bool {
+        match input {
+            '}' => self.stack.last() == Some(&'{'),
+            ']' => self.stack.last() == Some(&'['),
+            ')' => self.stack.last() == Some(&'('),
+            _ => false,
+        }
+    }
 
-    pub fn push(&mut self, ch: char) -> TomlResult<()> {
+    /// add brace to stack
+    fn push(&mut self, ch: char) -> TomlResult<()> {
         self.stack.push(ch);
         Ok(())
     }
-    pub fn pop(&mut self) -> TomlResult<()> {
-        if self.stack.get(0).is_some() {
-            self.stack.remove(0);
+    /// When input is a close brace pop calls `brace_match` and if match
+    /// removes the last open brace.
+    fn pop(&mut self, input: char) -> TomlResult<()> {
+        if self.stack.last().is_some() && self.brace_match(input) {
+            self.stack.pop();
             Ok(())
         } else {
             let msg = "bracket mismatch";
@@ -79,7 +92,22 @@ impl<'s> Stack<'s> {
             ))
         }
     }
-    pub fn is_empty(&self) -> bool {
+    /// Returns true when all braces have been matched with a closing
+    /// brace.
+    /// 
+    /// # Example
+    /// ```
+    /// use toml_parse::Muncher;
+    /// 
+    /// let input = "([{}])\n";
+    /// let mut munch = Muncher::new(input);
+    /// let mut stack = munch.brace_stack();
+    /// for ch in munch.peek_until(|c| c == &'\n') {
+    ///     stack.eat(*ch);
+    /// }
+    /// assert!(stack.is_matched())
+    /// ```
+    pub fn is_matched(&self) -> bool {
         self.stack.is_empty()
     }
 }
@@ -91,18 +119,22 @@ pub struct Fork<'a> {
 }
 
 impl<'f> Fork<'f> {
+    /// Resets the peek count of this `Fork`.
+    /// 
     pub fn reset_peek(&self) {
         self.peek.set(0);
     }
-
-    pub fn adv_peek(&self) -> usize {
-        self.peek.get() + 1
+    
+    fn adv_peek(&self) -> usize {
+        let peek = self.peek.get();
+        self.peek.set(peek + 1);
+        peek
     }
-
+    /// Peeks the next `char` and increments the peek count.
     pub fn peek(&self) -> Option<&char> {
         self.input.get(self.adv_peek())
     }
-
+    /// Seek forward count number of `char`s and returns them as string.
     pub fn seek(&self, count: usize) -> Option<String> {
         let start = self.peek.get();
         let end = start + count;
@@ -156,43 +188,69 @@ impl<'a> Muncher<'a> {
     /// 
     /// assert_eq!(munch.eat(), Some('b'));
     /// assert_eq!(munch.eat(), Some('c'));
-    /// 
     /// ``` 
     pub fn fork(&self) -> Fork {
         Fork {
-            input: &self.input[self.next - 1..],
+            input: &self.input[self.next..],
             peek: Cell::new(0),
         }
     }
+    /// Returns a `Stack` that parses matching braces, making sure every
+    /// brace is closed.
+    /// 
+    /// # Example
+    /// ```
+    /// use toml_parse::Muncher;
+    /// 
+    /// let input = "abcde";
+    /// let mut munch = Muncher::new(input);
+    /// let stack = munch.brace_stack();
+    /// ``` 
+    pub fn brace_stack(&self) -> Stack {
+        Stack::new(&self.text[self.next..], self.cursor_position())
+    }
 
-
+    /// Returns the whole input text as `&str`.
+    /// 
     pub fn text(&self) -> &str {
         self.text
     }
-
+    /// The position of `Muncher`, not its peek position.
+    /// 
     pub fn position(&self) -> usize {
         self.next
     }
-
+    /// Returns true when next counter has exhausted input.
+    /// 
     pub fn is_done(&self) -> bool {
         self.next >= self.input.len()
     }
-
+    /// Returns colum and line position, both start at (1, 1).
+    ///
+    /// # Example
+    /// ```
+    /// use toml_parse::Muncher;
+    /// 
+    /// let input = "abcde";
+    /// let mut munch = Muncher::new(input);
+    /// munch.eat();
+    /// assert_eq!(munch.cursor_position(), (2, 1));
+    /// ```
     pub fn cursor_position(&self) -> (usize, usize) {
-        let mut col = 1;
         let mut ln = 1;
+        let mut col = 1;
 
         for (i, ch) in self.input.iter().enumerate() {
-            if self.next + 1 == i {
+            if self.next == i {
                 break;
             }
             if ch == &'\n' {
-                ln = 1;
-                col += 1;
-            } else if ch == &'\r' {
-                continue
-            } else {
+                col = 1;
                 ln += 1;
+            } else if ch == &'\r' {
+                continue;
+            } else {
+                col += 1;
             }
         }
         (col, ln)
@@ -220,6 +278,18 @@ impl<'a> Muncher<'a> {
 
     /// Peek tokens until given predicate is true.
     /// Resets the peek position every time called.
+    /// 
+    /// # Example
+    /// ```
+    /// use toml_parse::Muncher;
+    /// 
+    /// let input = "abcde";
+    /// let mut munch = Muncher::new(input);
+    /// 
+    /// let text = munch.peek_until(|ch| ch == &'d').collect::<String>();
+    /// assert_eq!(text, "abc");
+    /// assert_eq!(munch.eat(), Some('a'));
+    /// ```
     pub fn peek_until<P>(&self, mut pred: P) -> impl Iterator<Item = &char>
     where
         P: FnMut(&char) -> bool,
@@ -249,6 +319,7 @@ impl<'a> Muncher<'a> {
     /// 
     /// let (start, end) = munch.peek_until_count(|ch| ch == &'d');
     /// assert_eq!(&munch.text()[start..end], "abc");
+    /// assert_eq!(munch.eat(), Some('a'));
     /// ``` 
     pub fn peek_until_count<P>(&self, mut pred: P) -> (usize, usize)
     where
@@ -268,6 +339,7 @@ impl<'a> Muncher<'a> {
 
     /// Peeks tokens until needle is found returns start and end.
     /// Resets the peek position every time called.
+    /// 
     /// # Example
     /// ```
     /// use toml_parse::Muncher;
@@ -277,6 +349,7 @@ impl<'a> Muncher<'a> {
     /// 
     /// let (start, end) = munch.peek_range_of("d");
     /// assert_eq!(&munch.text()[start..end], "abc");
+    /// assert_eq!(munch.eat(), Some('a'));
     /// ```
     pub fn peek_range_of(&self, needle: &str) -> (usize, usize) {
         let start = self.reset_peek();
@@ -353,7 +426,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-    /// Eats equal sign and returns true, false if not found
+    /// Eats `=` and returns true, false if not found
+    /// 
     pub fn eat_eq(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'=') {
@@ -363,7 +437,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `[` and returns true, false if not found
+    /// 
     pub fn eat_open_brc(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'[') {
@@ -373,7 +448,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `]` and returns true, false if not found
+    /// 
     pub fn eat_close_brc(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&']') {
@@ -383,7 +459,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `{` and returns true, false if not found
+    /// 
     pub fn eat_open_curly(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'{') {
@@ -393,7 +470,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `}` and returns true, false if not found
+    /// 
     pub fn eat_close_curly(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'}') {
@@ -403,7 +481,30 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `(` and returns true, false if not found
+    /// 
+    pub fn eat_open_paren(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&'(') {
+            self.eat().is_some()
+        } else {
+            self.reset_peek();
+            false
+        }
+    }
+    /// Eats `)` and returns true, false if not found
+    /// 
+    pub fn eat_close_paren(&mut self) -> bool {
+        self.reset_peek();
+        if self.peek() == Some(&')') {
+            self.eat().is_some()
+        } else {
+            self.reset_peek();
+            false
+        }
+    }
+    /// Eats `"` and returns true, false if not found
+    /// 
     pub fn eat_double_quote(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'"') {
@@ -413,7 +514,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `'` and returns true, false if not found
+    /// 
     pub fn eat_single_quote(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'\'') {
@@ -423,7 +525,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `,` and returns true, false if not found
+    /// 
     pub fn eat_comma(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&',') {
@@ -433,7 +536,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `#` and returns true, false if not found
+    /// 
     pub fn eat_hash(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'#') {
@@ -443,7 +547,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `+` and returns true, false if not found
+    /// 
     pub fn eat_plus(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'+') {
@@ -453,7 +558,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `-` and returns true, false if not found
+    /// 
     pub fn eat_minus(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'-') {
@@ -463,7 +569,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `:` and returns true, false if not found
+    /// 
     pub fn eat_colon(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&':') {
@@ -473,7 +580,8 @@ impl<'a> Muncher<'a> {
             false
         }
     }
-
+    /// Eats `.` and returns true, false if not found
+    /// 
     pub fn eat_dot(&mut self) -> bool {
         self.reset_peek();
         if self.peek() == Some(&'.') {
@@ -485,6 +593,18 @@ impl<'a> Muncher<'a> {
     }
 
     /// Eat tokens until given predicate is true.
+    /// 
+    /// # Example
+    /// ```
+    /// use toml_parse::Muncher;
+    /// 
+    /// let input = "abcde";
+    /// let mut munch = Muncher::new(input);
+    /// 
+    /// let text = munch.eat_until(|ch| ch == &'d').collect::<String>();
+    /// assert_eq!(text, "abc");
+    /// assert_eq!(munch.eat(), Some('d'));
+    /// ``` 
     pub fn eat_until<P>(&mut self, mut pred: P) -> impl Iterator<Item = char>
     where
         P: FnMut(&char) -> bool,
@@ -508,6 +628,19 @@ impl<'a> Muncher<'a> {
             .into_iter()
     }
 
+    /// Eats tokens until given predicate is true returns start and end.
+    /// 
+    /// # Example
+    /// ```
+    /// use toml_parse::Muncher;
+    /// 
+    /// let input = "abcde";
+    /// let mut munch = Muncher::new(input);
+    /// 
+    /// let (start, end) = munch.eat_until_count(|ch| ch == &'d');
+    /// assert_eq!(&munch.text()[start..end], "abc");
+    /// assert_eq!(munch.eat(), Some('d'));
+    /// ``` 
     pub fn eat_until_count<P>(&mut self, mut pred: P) -> (usize, usize)
     where
         P: FnMut(&char) -> bool,
@@ -529,6 +662,18 @@ impl<'a> Muncher<'a> {
 
     /// Eat tokens until needle is found returns start and end.
     /// Resets the peek position every time called.
+    /// 
+    /// # Example
+    /// ```
+    /// use toml_parse::Muncher;
+    /// 
+    /// let input = "abcde";
+    /// let mut munch = Muncher::new(input);
+    /// 
+    /// let (start, end) = munch.eat_range_of("d");
+    /// assert_eq!(&munch.text()[start..end], "abc");
+    /// assert_eq!(munch.eat(), Some('d'));
+    /// ```
     pub fn eat_range_of(&mut self, needle: &str) -> (usize, usize) {
         self.reset_peek();
         let start = self.next;
@@ -543,6 +688,24 @@ impl<'a> Muncher<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_position() {
+        let input = "abc\ndef\nghi";
+        let mut munch = Muncher::new(input);
+        
+        let s = munch.eat_until(|ch| ch == &'c').collect::<String>();
+        munch.eat();
+
+        let (c, l) = munch.cursor_position();
+        assert_eq!(c, 4);
+        assert_eq!(l, 1);
+        let s = munch.eat_until(|ch| ch == &'g').collect::<String>();
+
+        let (c, l) = munch.cursor_position();
+        assert_eq!(c, 1);
+        assert_eq!(l, 3);
+    }
 
     #[test]
     fn advance_muncher() {
@@ -644,5 +807,39 @@ mod tests {
         assert_eq!(fork.peek(), Some(&'b'));
         assert_eq!(munch.eat(), Some('b'));
         assert_eq!(munch.eat(), Some('c'));
+    }
+
+    #[test]
+    fn test_stack_math() {
+        let input = "((5 + (3 * 10)) / 1)\n";
+        let mut munch = Muncher::new(input);
+        let mut stack = munch.brace_stack();
+
+        for ch in munch.peek_until(|c| c == &'\n') {
+            assert!(stack.eat(*ch).is_ok());
+        }
+        assert!(stack.is_matched())
+    }
+    #[test]
+    fn test_stack_code() {
+        let input = "fn a() { fn b() { x = [ (), () ] } }\n";
+        let mut munch = Muncher::new(input);
+        let mut stack = munch.brace_stack();
+
+        for ch in munch.peek_until(|c| c == &'\n') {
+            assert!(stack.eat(*ch).is_ok());
+        }
+        assert!(stack.is_matched())
+    }
+    #[test]
+    fn test_stack_fail() {
+        let input = "(]\n";
+        let mut munch = Muncher::new(input);
+        let mut stack = munch.brace_stack();
+
+        for ch in munch.peek_until(|c| c == &'\n') {
+            stack.eat(*ch);
+        }
+        assert!(!stack.is_matched())
     }
 }

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rowan::{GreenNode, GreenNodeBuilder, SmolStr};
+use rowan::{GreenNode, GreenNodeBuilder, SmolStr, WalkEvent};
 
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
 use super::kinds::TomlKind::{self, *};
@@ -33,10 +33,22 @@ impl rowan::Language for TomlLang {
     }
 }
 
+fn walk(node: &SyntaxNode) -> impl Iterator<Item = SyntaxElement> {
+    node.preorder_with_tokens().filter_map(|event| match event {
+        WalkEvent::Enter(element) => Some(element),
+        WalkEvent::Leave(_) => None,
+    })
+}
+fn walk_tokens(node: &SyntaxNode) -> impl Iterator<Item = SyntaxToken> {
+    walk(node).filter_map(|element| match element {
+        SyntaxElement::Token(token) => Some(token),
+        _ => None,
+    })
+}
 impl Printer for SyntaxNode {
     /// walks tokens collecting each tokens text into a final String.
     fn print_text(&self) -> String {
-        walk::walk_tokens(self).fold(String::default(), |mut s, tkn| {
+        walk_tokens(self).fold(String::default(), |mut s, tkn| {
             s.push_str(tkn.text());
             s
         })

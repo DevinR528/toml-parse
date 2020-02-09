@@ -1,7 +1,6 @@
-pub(self) use super::common::{err, munch};
+pub(self) use super::common::{self, err};
 
 mod kinds;
-// mod tokenize;
 mod parse_tkns;
 mod syntax;
 pub mod walk;
