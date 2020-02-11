@@ -5,6 +5,7 @@ use rowan::{
     TextRange, TextUnit, TokenAtOffset,
 };
 
+
 use super::tkn_tree::{
     parse_it,
     walk::{
@@ -14,17 +15,22 @@ use super::tkn_tree::{
     Printer, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
 };
 
-pub fn sort_toml(root: SyntaxNode, headings: &[&str]) -> SyntaxNode {
+pub struct Matcher<'a> {
+    heading: &'a [&'a str],
+    segmented: &'a [&'a str],
+}
+
+pub fn sort_toml_items(root: SyntaxNode, matcher: Matcher<'_>) -> SyntaxNode {
     let mut builder = GreenNodeBuilder::new();
     builder.start_node(root.kind().into());
 
-    for ele in root.children_with_tokens() {
+    for ele in sorted_tables_with_tokens(root, matcher.segmented) {
         match ele.kind() {
             TomlKind::Table => {
-                if match_table(ele.as_node().unwrap(), headings) {
+                if match_table(ele.as_node().unwrap(), matcher.heading) {
                     add_sort_table(ele.as_node().unwrap(), &mut builder)
                 }
-            }
+            },
             _ => match ele {
                 SyntaxElement::Node(n) => add_node(n, &mut builder),
                 SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
@@ -34,6 +40,40 @@ pub fn sort_toml(root: SyntaxNode, headings: &[&str]) -> SyntaxNode {
 
     builder.finish_node();
     SyntaxNode::new_root(builder.finish())
+}
+
+fn sorted_tables_with_tokens(root: SyntaxNode, segmented: &[&str]) -> impl Iterator<Item = SyntaxElement> {
+    let kids = root.children_with_tokens().collect::<Vec<_>>();
+    let pos = root
+        .children_with_tokens()
+        .enumerate()
+        .filter(|(_, n)| n.as_node().map(|n| n.kind()) == Some(TomlKind::Table))
+        .map(|(i, n)| (i, n.as_node().unwrap().children().find(|n| n.kind() == TomlKind::Heading).map(|n| n.token_text())))
+        .collect::<Vec<_>>();
+    
+    let mut tables = Vec::default();
+    let mut start = 0;
+    for (idx, key) in pos {
+        let idx = if kids.get(idx + 1).map(|el| el.as_token().map(|t| t.kind()) == Some(TomlKind::Whitespace)) == Some(true) {
+            idx + 1
+        } else {
+            idx
+        };
+        tables.push((key, kids[start..=idx].to_vec()));
+        start = idx + 1;
+    }
+
+    println!("{:?}", tables);
+
+    fn split_seg(s: &String) -> String {
+        let open_close: &[char] = &['[', ']'];
+        s.replace(open_close, "").split('.').last().map(ToString::to_string).unwrap()
+    }
+    tables.sort_by(|chunk, other| {
+        chunk.0.as_ref().map(split_seg).cmp(&other.0.as_ref().map(split_seg))
+    });
+    tables.into_iter().map(|p| p.1).flatten()
+    // root.children_with_tokens()
 }
 
 fn match_table(node: &SyntaxNode, headings: &[&str]) -> bool {
@@ -125,6 +165,11 @@ mod test {
     use super::*;
     use std::fs::read_to_string;
 
+    const HEADER: Matcher<'static> = Matcher {
+        heading: & ["deps", "dependencies"],
+        segmented: & ["dependencies."],
+    };
+
     #[test]
     fn comment_tkns() {
         let file = r#"# comment
@@ -135,7 +180,7 @@ alpha = "beta"
 "#;
         let parsed = parse_it(file).expect("parse failed").syntax();
         println!("{:#?}", parsed);
-        let sorted = sort_toml(parsed, &["deps"]);
+        let sorted = sort_toml_items(parsed, HEADER);
         println!("{:#?}", sorted)
     }
 
@@ -144,7 +189,7 @@ alpha = "beta"
         let input = read_to_string("examp/ftop.toml").expect("file read failed");
         let parsed = parse_it(&input).expect("parse failed").syntax();
         println!("{:#?}", parsed);
-        let sorted = sort_toml(parsed, &["dependencies"]);
+        let sorted = sort_toml_items(parsed, HEADER);
         println!("{:#?}", sorted)
     }
 }
