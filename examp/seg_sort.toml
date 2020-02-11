@@ -1,0 +1,13 @@
+[dependencies.last]
+version = "0.15"
+
+[dependencies.alpha]
+version = "0.15"
+
+[hello]
+
+[dependencies.gama]
+version = "0.15"
+
+[dependencies.beta]
+version = "0.15"

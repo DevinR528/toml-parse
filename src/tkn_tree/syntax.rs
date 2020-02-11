@@ -193,8 +193,8 @@ inline-table = { date = 1988-02-03T10:32:10, }
     #[test]
     fn print_token_text() {
         // ftop.toml is 7 items long
-        let input = read_to_string("examp/ftop.toml").expect("file read failed");
+        let input = read_to_string("examp/seg_sort.toml").expect("file read failed");
         let root = parse_it(&input).expect("parse failed").syntax();
-        assert_eq!(root.token_text(), input)
+        println!("{:#?}", root)
     }
 }

@@ -10,6 +10,34 @@ pub fn cmp_tokens(ch: &char, chars: &[char]) -> bool {
     chars.iter().any(|c| c == ch)
 }
 
+pub trait GroupBy<T> {
+    type Item;
+    fn group_by<P>(self, predicate: P) -> (Vec<Self::Item>, Vec<Self::Item>)
+    where
+        Self: Sized,
+        P: FnMut(&Self::Item) -> bool;
+}
+
+impl<I: IntoIterator<Item = T>, T> GroupBy<T> for I {
+    type Item = T;
+    fn group_by<P>(self, mut predicate: P) -> (Vec<Self::Item>, Vec<Self::Item>)
+    where
+        Self: Sized,
+        P: FnMut(&Self::Item) -> bool,
+    {
+        let mut t = Vec::default();
+        let mut f = Vec::default();
+        for x in self.into_iter() {
+            if predicate(&x) {
+                t.push(x)
+            } else {
+                f.push(x)
+            }
+        }
+        (t, f)
+    }
+}
+
 pub(crate) const EOL: &[char] = &['\n', '\r'];
 pub(crate) const WHITESPACE: &[char] = &[' ', '\n', '\t', '\r'];
 
