@@ -38,9 +38,20 @@ pub fn prev_non_whitespace_sibling(element: &SyntaxElement) -> Option<SyntaxElem
     })
     .find(|it| it.kind() != TomlKind::Whitespace)
 }
+pub fn prev_siblings(element: &SyntaxElement) -> impl Iterator<Item = SyntaxElement> {
+    successors(element.prev_sibling_or_token(), |it| {
+        it.prev_sibling_or_token()
+    })
+}
 pub fn next_non_whitespace_sibling(element: &SyntaxElement) -> Option<SyntaxElement> {
     successors(element.next_sibling_or_token(), |it| {
         it.next_sibling_or_token()
     })
     .find(|it| it.kind() != TomlKind::Whitespace)
+}
+
+pub fn next_siblings(element: &SyntaxElement) -> impl Iterator<Item = SyntaxElement> {
+    successors(element.next_sibling_or_token(), |it| {
+        it.next_sibling_or_token()
+    })
 }

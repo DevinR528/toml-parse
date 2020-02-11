@@ -1,16 +1,16 @@
-use rowan::SmolStr;
 use muncher::Muncher;
+use rowan::SmolStr;
 
 use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
 use super::kinds::TomlKind::{self, *};
 
 use chrono::{NaiveDate, NaiveTime};
 
-use super::kinds::{Element, TomlNode, TomlToken};
 use super::common::{
-    cmp_tokens, ARRAY_ITEMS, BOOL_END, DATE_CHAR, DATE_END, DATE_LIKE, DATE_TIME, EOL,
-    IDENT_END, INLINE_ITEMS, INT_END, KEY_END, NUM_END, SEG_END, TIME_CHAR, WHITESPACE,
+    cmp_tokens, ARRAY_ITEMS, BOOL_END, DATE_CHAR, DATE_END, DATE_LIKE, DATE_TIME, EOL, IDENT_END,
+    INLINE_ITEMS, INT_END, KEY_END, NUM_END, SEG_END, TIME_CHAR, WHITESPACE,
 };
+use super::kinds::{Element, TomlNode, TomlToken};
 use super::syntax::Parser;
 
 impl Into<(TomlKind, SmolStr)> for Element {
@@ -829,7 +829,6 @@ impl TomlNode {
 
         TomlNode::heading(muncher, parser)?;
         loop {
-            
             if muncher.seek(5).map(|s| s.contains('[')) == Some(true) {
                 break;
             }
