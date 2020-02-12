@@ -11,9 +11,16 @@ pub type SyntaxNode = rowan::SyntaxNode<TomlLang>;
 pub type SyntaxToken = rowan::SyntaxToken<TomlLang>;
 pub type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
 
-pub trait Printer {
+pub trait ExtTrait {
+    /// walks tokens collecting each tokens text into a final String.
     fn token_text(&self) -> String;
+    /// `rowan::SyntaxNode` by default only compares pointer equality
+    /// this method addition allows comparison of every token, the same
+    /// file parsed multiple times will return true, with pointer eq
+    /// this would be false.
+    fn deep_eq(&self, other: &Self) -> bool;
 }
+
 impl From<TomlKind> for rowan::SyntaxKind {
     fn from(kind: TomlKind) -> Self {
         Self(kind as u16)
@@ -45,13 +52,34 @@ fn walk_tokens(node: &SyntaxNode) -> impl Iterator<Item = SyntaxToken> {
         _ => None,
     })
 }
-impl Printer for SyntaxNode {
-    /// walks tokens collecting each tokens text into a final String.
+impl ExtTrait for SyntaxNode {
     fn token_text(&self) -> String {
         walk_tokens(self).fold(String::default(), |mut s, tkn| {
             s.push_str(tkn.text());
             s
         })
+    }
+
+    fn deep_eq(&self, other: &Self) -> bool {
+        for (a, b) in walk(self).zip(walk(other)) {
+            match (&a, &b) {
+                (SyntaxElement::Node(n1), SyntaxElement::Node(n2)) => {
+                    if n1.token_text() != n2.token_text() {
+                        return false;
+                    }
+                },
+                (SyntaxElement::Token(t1), SyntaxElement::Token(t2)) => {
+                    if t1.text() != t2.text() {
+                        return false;
+                    }
+                },
+                (_, _) => return false,
+            }
+            if a.kind() != b.kind() {
+                return false;
+            }
+        }
+        true
     }
 }
 

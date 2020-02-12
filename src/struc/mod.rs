@@ -11,7 +11,7 @@ use tkn_tree::{
         next_siblings, prev_non_whitespace_sibling, prev_siblings, walk_nodes, walk_non_whitespace,
         walk_tokens,
     },
-    Printer, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
+    ExtTrait, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
 };
 
 mod date;
