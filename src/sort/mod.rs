@@ -11,7 +11,7 @@ use super::tkn_tree::{
         next_siblings, prev_non_whitespace_sibling, prev_siblings, walk_nodes, walk_non_whitespace,
         walk_tokens,
     },
-    ExtTrait, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
+    SyntaxNodeExtTrait, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
 };
 
 pub struct Matcher<'a> {
@@ -19,6 +19,16 @@ pub struct Matcher<'a> {
     segmented: &'a [&'a str],
     heading_key: &'a [(&'a str, &'a str)],
     value: TomlKind,
+}
+
+fn split_seg_last<S: AsRef<str>>(s: S) -> String {
+    let open_close: &[char] = &['[', ']'];
+    s.as_ref()
+        .replace(open_close, "")
+        .split('.')
+        .last()
+        .map(ToString::to_string)
+        .unwrap()
 }
 
 pub fn sort_toml_items(root: &SyntaxNode, matcher: &Matcher<'_>) -> SyntaxNode {
@@ -89,18 +99,7 @@ fn sorted_tables_with_tokens(
     }
 
     if start != kids.len() {
-        println!("SIZE DIFF");
         tables.push((None, kids[start..].to_vec()))
-    }
-    println!("{:#?}", tables);
-    fn split_seg<S: AsRef<str>>(s: S) -> String {
-        let open_close: &[char] = &['[', ']'];
-        s.as_ref()
-            .replace(open_close, "")
-            .split('.')
-            .last()
-            .map(ToString::to_string)
-            .unwrap()
     }
 
     tables.sort_by(|chunk, other| {
@@ -119,17 +118,12 @@ fn sorted_tables_with_tokens(
             chunk
                 .0
                 .as_ref()
-                .map(split_seg)
-                .cmp(&other.0.as_ref().map(split_seg))
+                .map(split_seg_last)
+                .cmp(&other.0.as_ref().map(split_seg_last))
         } else {
             Ordering::Equal
         }
     });
-
-    // println!("{}", tables.iter().map(|p| &p.1).flatten().map(|el| match el {
-    //     SyntaxElement::Node(n) => n.token_text(),
-    //     SyntaxElement::Token(n) => n.text().to_string(),
-    // }).collect::<String>());
 
     tables.into_iter().map(|p| p.1).flatten()
 }
@@ -181,7 +175,6 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
         start = idx + 1;
     }
     if start != kv.len() {
-        println!("SIZE DIFF");
         keys.push((None, &kv[start..]))
     }
     keys.sort_by(|chunk, other| chunk.0.cmp(&other.0));
@@ -235,7 +228,6 @@ fn add_table_sort_items(
                             if n.first_child().map(|n| n.kind()) == Some(node_type) {
                                 builder.start_node(TomlKind::Value.into());
                                 for sorted in sort_items(n.first_child().unwrap()) {
-                                    println!("SORTED {:?}", sorted);
                                     add_element(sorted, builder);
                                 }
                                 builder.finish_node();
@@ -286,7 +278,6 @@ fn sort_items(node: SyntaxNode) -> Vec<SyntaxElement> {
         start = idx + 1;
     }
     if start != children.len() {
-        println!("SIZE DIFF");
         sorted.push((None, &children[start..]))
     }
     sorted.sort_by(|chunk, other| chunk.0.cmp(&other.0));

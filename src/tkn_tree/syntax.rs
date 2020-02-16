@@ -11,7 +11,7 @@ pub type SyntaxNode = rowan::SyntaxNode<TomlLang>;
 pub type SyntaxToken = rowan::SyntaxToken<TomlLang>;
 pub type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
 
-pub trait ExtTrait {
+pub trait SyntaxNodeExtTrait {
     /// walks tokens collecting each tokens text into a final String.
     fn token_text(&self) -> String;
     /// `rowan::SyntaxNode` by default only compares pointer equality
@@ -52,7 +52,7 @@ fn walk_tokens(node: &SyntaxNode) -> impl Iterator<Item = SyntaxToken> {
         _ => None,
     })
 }
-impl ExtTrait for SyntaxNode {
+impl SyntaxNodeExtTrait for SyntaxNode {
     fn token_text(&self) -> String {
         walk_tokens(self).fold(String::default(), |mut s, tkn| {
             s.push_str(tkn.text());

@@ -7,4 +7,4 @@ pub mod walk;
 
 pub use kinds::{TomlKind, TomlNode, TomlToken};
 pub use parse_tkns::Tokenizer;
-pub use syntax::{parse_it, ExtTrait, ParsedToml, Parser, SyntaxElement, SyntaxNode, SyntaxToken};
+pub use syntax::{parse_it, SyntaxNodeExtTrait, ParsedToml, Parser, SyntaxElement, SyntaxNode, SyntaxToken};
