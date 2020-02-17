@@ -9,14 +9,20 @@ use super::tkn_tree::{
     parse_it,
     walk::{
         next_siblings, prev_non_whitespace_sibling, prev_siblings, walk_nodes, walk_non_whitespace,
-        walk_tokens,
+        walk_tokens, walk,
     },
     SyntaxNodeExtTrait, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
 };
 
+/// Each `Matcher` field when matched to a heading or key token
+/// will be matched with `.contains()`.
 pub struct Matcher<'a> {
+    /// Toml headings with braces `[heading]`.
     heading: &'a [&'a str],
+    /// Toml segmented heading without braces.
     segmented: &'a [&'a str],
+    /// Toml heading with braces `[heading]` and the key
+    /// of the array to sort.
     heading_key: &'a [(&'a str, &'a str)],
     value: TomlKind,
 }
@@ -38,6 +44,8 @@ pub fn sort_toml_items(root: &SyntaxNode, matcher: &Matcher<'_>) -> SyntaxNode {
     for ele in sorted_tables_with_tokens(root, matcher.segmented) {
         match ele.kind() {
             TomlKind::Table => {
+                // for [workspace] members = ...
+                // this is heading and members is key.
                 let (head, key): (Vec<_>, Vec<_>) = matcher.heading_key.iter().cloned().unzip();
                 let node = ele.as_node().unwrap();
                 if match_table(node, matcher.heading) {
@@ -323,16 +331,21 @@ mod test {
     use std::fs::read_to_string;
 
     const HEADER: Matcher<'static> = Matcher {
-        heading: &["deps", "dependencies"],
+        heading: &["[dependencies]"],
         segmented: &["dependencies."],
-        heading_key: &[("workspace", "members")],
+        heading_key: &[("[workspace]", "members")],
         value: TomlKind::Array,
     };
-
+    
+    fn print_overlaping(sorted: &SyntaxNode, parsed: &SyntaxNode) {
+        for (p, s) in walk(parsed).zip(walk(sorted)) {
+            println!("PARSED={:?} SORTED={:?}", p, s);
+        }
+    }
     #[test]
     fn comment_tkns() {
         let file = r#"# comment
-[deps]
+[dependencies]
 number = 1234
 # comment
 alpha = "beta"
@@ -357,10 +370,11 @@ alpha = "beta"
         assert!(parsed.deep_eq(&parsed2));
 
         let sorted = sort_toml_items(&parsed, &HEADER);
+        println!("{}", sorted.token_text());
+        print_overlaping(&sorted, &parsed);
 
         assert!(!parsed.deep_eq(&sorted));
         assert_eq!(sorted.text_range(), parsed.text_range());
-
     }
 
     #[test]
@@ -370,13 +384,25 @@ alpha = "beta"
         let parsed2 = parse_it(&input).expect("parse failed").syntax();
 
         assert!(parsed.deep_eq(&parsed2));
-        println!("{}", parsed.token_text());
+        // println!("{}", parsed.token_text());
 
         let sorted = sort_toml_items(&parsed, &HEADER);
         println!("{}", sorted.token_text());
         assert!(!parsed.deep_eq(&sorted));
         assert_eq!(sorted.text_range(), parsed.text_range());
+    }
 
+    #[test]
+    fn sort_tkns_seg_ok() {
+        let input = read_to_string("examp/seg_sort_ok.toml").expect("file read failed");
+        let parsed = parse_it(&input).expect("parse failed").syntax();
+        let parsed2 = parse_it(&input).expect("parse failed").syntax();
+
+        assert!(parsed.deep_eq(&parsed2));
+
+        let sorted = sort_toml_items(&parsed, &HEADER);
+        assert!(parsed.deep_eq(&sorted));
+        assert_eq!(sorted.text_range(), parsed.text_range());
     }
 
     #[test]
@@ -393,6 +419,23 @@ alpha = "beta"
 
         assert!(!parsed.deep_eq(&sorted));
         assert_eq!(sorted.text_range(), parsed.text_range());
+    }
+    #[test]
+    fn sort_tkns_fend() {
+        let input = read_to_string("examp/fend.toml").expect("file read failed");
+        let parsed = parse_it(&input).expect("parse failed").syntax();
+        let parsed2 = parse_it(&input).expect("parse failed").syntax();
 
+        assert!(parsed.deep_eq(&parsed2));
+        // println!("{:#?}", parsed);
+        // println!("{}", parsed.token_text());
+
+        let sorted = sort_toml_items(&parsed, &HEADER);
+        print_overlaping(&sorted, &parsed);
+        // println!("{:#?}", sorted);
+        // println!("{}", sorted.token_text());
+
+        assert!(!parsed.deep_eq(&sorted));
+        assert_eq!(sorted.text_range(), parsed.text_range());
     }
 }

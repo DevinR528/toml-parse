@@ -1,4 +1,8 @@
+#![allow(dead_code)]
+#![allow(unused)]
+
 mod common;
+mod toml_fmt;
 mod sort;
 mod struc;
 mod tkn_tree;
