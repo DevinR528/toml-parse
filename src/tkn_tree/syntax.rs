@@ -186,6 +186,7 @@ array = [ true, false, true ]
 inline-table = { date = 1988-02-03T10:32:10, }
 "#;
         let parsed = parse_it(file).expect("parse failed");
+        println!("{:#?}", parsed.syntax());
         assert_eq!(parsed.syntax().token_text(), file)
     }
 

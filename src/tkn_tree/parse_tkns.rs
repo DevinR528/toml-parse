@@ -315,12 +315,15 @@ impl TomlNode {
     fn comment(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Comment.into());
 
+        
+        TomlToken::hash(muncher, parser)?;
+        TomlToken::comment_text(muncher, parser)?;
+
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
             let (kind, text) = ws.into();
             parser.builder.token(kind.into(), text)
         }
-        TomlToken::hash(muncher, parser)?;
-        TomlToken::comment_text(muncher, parser)?;
+        
         parser.builder.finish_node();
         Ok(())
     }
@@ -433,10 +436,10 @@ impl TomlNode {
     fn key(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Key.into());
 
-        if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
-            let (kind, text) = ws.into();
-            parser.builder.token(kind.into(), text)
-        }
+        // if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+        //     let (kind, text) = ws.into();
+        //     parser.builder.token(kind.into(), text)
+        // }
         let (s, e) = muncher.peek_until_count(|c| cmp_tokens(c, KEY_END));
         // muncher.reset_peek();
         match muncher.peek() {
@@ -445,14 +448,14 @@ impl TomlNode {
             Some(ch) if ch.is_ascii() => TomlToken::ident(muncher, parser),
             Some(tkn) => {
                 let (ln, col) = muncher.cursor_position();
-                let msg = "invalid key token".into();
+                let msg = "invalid token in key".into();
                 let tkn = format!("{}", tkn);
                 return Err(ParseTomlError::new(
                     msg,
                     TomlErrorKind::UnexpectedToken { tkn, ln, col },
                 ));
             }
-            None => todo!("NONE in key"),
+            None => unreachable!("NONE in key"),
         }?;
 
         let text = SmolStr::new(&muncher.text()[s..e]);
@@ -461,7 +464,7 @@ impl TomlNode {
             Ok(())
         } else {
             let (ln, col) = muncher.cursor_position();
-            let msg = "invalid key token".into();
+            let msg = "invalid token in key".into();
             let tkn = format!("{}", text);
             Err(ParseTomlError::new(
                 msg,
@@ -475,10 +478,10 @@ impl TomlNode {
     /// and tables.
     fn value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Value.into());
-        if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
-            let (kind, text) = ws.into();
-            parser.builder.token(kind.into(), text)
-        }
+        // if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+        //     let (kind, text) = ws.into();
+        //     parser.builder.token(kind.into(), text)
+        // }
         match muncher.peek() {
             Some('"') => TomlNode::string(muncher, parser),
             Some('\'') => TomlNode::single_str(muncher, parser),
@@ -503,53 +506,6 @@ impl TomlNode {
                 let msg = "invalid token in value";
                 let tkn = if let Some(peek) = muncher.peek() {
                     format!("{:?}", peek)
-                } else {
-                    "no token".into()
-                };
-                let (ln, col) = muncher.cursor_position();
-                return Err(ParseTomlError::new(
-                    msg.into(),
-                    TomlErrorKind::UnexpectedToken { tkn, ln, col },
-                ));
-            }
-        }?;
-        parser.builder.finish_node();
-        Ok(())
-    }
-
-    /// Builds `Value` node from `Whitespace` and whatever value node is present
-    /// and adds them as children. This is called for inline tables only.
-    fn inline_value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
-        parser.builder.start_node(Value.into());
-
-        if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
-            let (kind, text) = ws.into();
-            parser.builder.token(kind.into(), text)
-        }
-        match muncher.peek() {
-            Some('"') => TomlNode::string(muncher, parser),
-            Some('\'') => TomlNode::single_str(muncher, parser),
-            Some('t') | Some('f') => TomlToken::boolean(muncher, parser),
-            Some('[') => TomlNode::array(muncher, parser),
-            Some('{') => TomlNode::inline_table(muncher, parser),
-            Some(digi) if digi.is_numeric() => {
-                muncher.reset_peek();
-                let raw = muncher
-                    .peek_until(|c| cmp_tokens(c, NUM_END))
-                    .collect::<String>();
-                if raw.contains(DATE_LIKE) {
-                    TomlNode::date_time(muncher, parser)
-                } else if raw.contains('.') {
-                    TomlNode::float(muncher, parser)
-                } else {
-                    TomlToken::integer(muncher, parser)
-                }
-            }
-            None => unimplemented!("value found EOF"),
-            _ => {
-                let msg = "invalid token in key value pairs";
-                let tkn = if let Some(peek) = muncher.peek() {
-                    format!("{:#?}", peek)
                 } else {
                     "no token".into()
                 };
@@ -598,6 +554,12 @@ impl TomlNode {
         }
 
         TomlNode::value(muncher, parser)?;
+
+        if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+            let (kind, text) = ws.into();
+            parser.builder.token(kind.into(), text)
+        }
+
         parser.builder.finish_node();
         Ok(())
     }
@@ -672,6 +634,53 @@ impl TomlNode {
         while let Some(_) = TomlNode::array_item(muncher, parser)? { /* loop to array end */ }
 
         TomlToken::close_brace(muncher, parser)?;
+        parser.builder.finish_node();
+        Ok(())
+    }
+
+    /// Builds `Value` node from `Whitespace` and whatever value node is present
+    /// and adds them as children. This is called for inline tables only.
+    fn inline_value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
+        parser.builder.start_node(Value.into());
+
+        if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+            let (kind, text) = ws.into();
+            parser.builder.token(kind.into(), text)
+        }
+        match muncher.peek() {
+            Some('"') => TomlNode::string(muncher, parser),
+            Some('\'') => TomlNode::single_str(muncher, parser),
+            Some('t') | Some('f') => TomlToken::boolean(muncher, parser),
+            Some('[') => TomlNode::array(muncher, parser),
+            Some('{') => TomlNode::inline_table(muncher, parser),
+            Some(digi) if digi.is_numeric() => {
+                muncher.reset_peek();
+                let raw = muncher
+                    .peek_until(|c| cmp_tokens(c, NUM_END))
+                    .collect::<String>();
+                if raw.contains(DATE_LIKE) {
+                    TomlNode::date_time(muncher, parser)
+                } else if raw.contains('.') {
+                    TomlNode::float(muncher, parser)
+                } else {
+                    TomlToken::integer(muncher, parser)
+                }
+            }
+            None => unimplemented!("value found EOF"),
+            _ => {
+                let msg = "invalid token in key value pairs";
+                let tkn = if let Some(peek) = muncher.peek() {
+                    format!("{:#?}", peek)
+                } else {
+                    "no token".into()
+                };
+                let (ln, col) = muncher.cursor_position();
+                return Err(ParseTomlError::new(
+                    msg.into(),
+                    TomlErrorKind::UnexpectedToken { tkn, ln, col },
+                ));
+            }
+        }?;
         parser.builder.finish_node();
         Ok(())
     }
@@ -814,6 +823,12 @@ impl TomlNode {
         let _eaten = muncher.eat_until(|c| c == &']');
 
         TomlToken::close_brace(muncher, parser)?;
+
+        if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+            let (kind, text) = ws.into();
+            parser.builder.token(kind.into(), text)
+        }
+
         parser.builder.finish_node();
         Ok(())
     }
@@ -822,6 +837,7 @@ impl TomlNode {
     /// and adds them as children.
     fn table(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Table.into());
+
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
             let (kind, text) = ws.into();
             parser.builder.token(kind.into(), text)
@@ -829,19 +845,26 @@ impl TomlNode {
 
         TomlNode::heading(muncher, parser)?;
         loop {
+            // if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+            //     let (kind, text) = ws.into();
+            //     parser.builder.token(kind.into(), text)
+            // }
             if muncher.seek(5).map(|s| s.contains('[')) == Some(true) {
                 break;
             }
-            if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
-                let (kind, text) = ws.into();
-                parser.builder.token(kind.into(), text)
-            }
+            muncher.reset_peek();
             // TODO this is weak.
             if muncher.is_done() {
                 break;
             }
             TomlNode::key_value(muncher, parser)?;
         }
+
+        if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+            let (kind, text) = ws.into();
+            parser.builder.token(kind.into(), text)
+        }
+
         parser.builder.finish_node();
         Ok(())
     }
@@ -873,13 +896,12 @@ impl Tokenizer {
     /// `Table`s and `Comments`.
     fn parse_file(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Root.into());
-        // let text = SmolStr::new(muncher.text());
-        // let end = text.len();
         loop {
-            if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
-                let (kind, text) = ws.into();
-                parser.builder.token(kind.into(), text)
-            }
+            // if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+            //     println!("NEVER EAT WS TOP LEVEL");
+            //     let (kind, text) = ws.into();
+            //     parser.builder.token(kind.into(), text)
+            // }
             if muncher.is_done() {
                 parser.builder.token(EoF.into(), SmolStr::default());
                 break;
