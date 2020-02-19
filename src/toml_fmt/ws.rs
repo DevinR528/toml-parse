@@ -1,5 +1,7 @@
 use std::fmt;
 
+use rowan::{Direction};
+
 use super::tkn_tree::{
     walk::{
         next_siblings, prev_non_whitespace_sibling, prev_siblings, walk_nodes, walk_non_whitespace,
@@ -85,7 +87,9 @@ impl fmt::Display for Space {
         match self.value {
             SpaceValue::Single => write!(f, " "),
             SpaceValue::Newline => writeln!(f),
-            SpaceValue::Indent{ level, alignment, } => write!(f, "\n{}", " ".repeat((level * USER_INDENT_SIZE + alignment) as usize)),
+            SpaceValue::Indent{ level, alignment, } => {
+                write!(f, "\n{}", " ".repeat((level * USER_INDENT_SIZE + alignment) as usize))
+            },
             SpaceValue::None => write!(f, ""),
             _ => {
                 // unreachable!("no other writable variants")
@@ -101,7 +105,23 @@ pub struct WhiteSpace {
 }
 
 impl WhiteSpace {
-    pub(crate) fn new(token: &SyntaxToken) -> WhiteSpace {
+    pub(crate) fn new(element: &SyntaxElement) -> WhiteSpace {
+        match &element {
+            SyntaxElement::Node(node) => WhiteSpace::from_node(&node),
+            SyntaxElement::Token(token) => WhiteSpace::from_token(&token),
+        }
+    }
+
+    pub(crate) fn from_node(node: &SyntaxNode) -> WhiteSpace {
+        // must skip first siblings_with_tokens returns 'me' token as first
+        let mut previous = node.siblings_with_tokens(Direction::Prev).skip(1);
+        let mut next = node.siblings_with_tokens(Direction::Next).skip(1);
+
+        let (space_before, space_after) = filter_nodes(previous.next(), next.next());
+        Self { space_before, space_after }
+    }
+
+    pub(crate) fn from_token(token: &SyntaxToken) -> WhiteSpace {
         let (space_before, space_after) = match (token.prev_token(), token.next_token()) {
             (Some(pre), Some(post)) => (Space::before(pre), Space::after(post)),
             (Some(pre), _) => (Space::before(pre), Space::empty_after()),

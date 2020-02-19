@@ -18,7 +18,7 @@ pub struct Formatter {
 
 impl Formatter {
     pub fn new(root: &SyntaxNode) -> Formatter {
-        let blocks = walk_tokens(root).map(Block::new).collect();
+        let blocks = walk(root).map(Block::new).collect();
         Self { blocks, }
     }
 

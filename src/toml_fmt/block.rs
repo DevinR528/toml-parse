@@ -9,15 +9,15 @@ use super::tkn_tree::{
 use super::ws::WhiteSpace;
 
 pub struct Block {
-    tkn: SyntaxToken,
+    ele: SyntaxElement,
     whitespace: WhiteSpace,
 }
 
 impl Block {
-    pub fn new(tkn: SyntaxToken) -> Block {
-        let whitespace = WhiteSpace::new(&tkn);
+    pub fn new(ele: SyntaxElement) -> Block {
+        let whitespace = WhiteSpace::new(&ele);
         Self {
-            tkn,
+            ele,
             whitespace,
         }
     }
