@@ -271,7 +271,7 @@ impl TomlToken {
             parser.builder.token(Bool.into(), text);
             Ok(())
         } else {
-            let (ln, col) = muncher.cursor_position();
+            let (col, ln) = muncher.cursor_position();
             let msg = "invalid integer".into();
             Err(ParseTomlError::new(
                 msg,
@@ -293,7 +293,7 @@ impl TomlToken {
             parser.builder.token(Integer.into(), text);
             Ok(())
         } else {
-            let (ln, col) = muncher.cursor_position();
+            let (col, ln) = muncher.cursor_position();
             let msg = "invalid integer".into();
             Err(ParseTomlError::new(
                 msg,
@@ -357,7 +357,7 @@ impl TomlNode {
         let text = SmolStr::new(&muncher.text()[s..e]);
 
         if is_valid_datetime(&text) != Ok(true) {
-            let (ln, col) = muncher.cursor_position();
+            let (col, ln) = muncher.cursor_position();
             let msg = "invalid integer".into();
             Err(ParseTomlError::new(
                 msg,
@@ -447,7 +447,7 @@ impl TomlNode {
             Some(&'\'') => TomlNode::single_str(muncher, parser),
             Some(ch) if ch.is_ascii() => TomlToken::ident(muncher, parser),
             Some(tkn) => {
-                let (ln, col) = muncher.cursor_position();
+                let (col, ln) = muncher.cursor_position();
                 let msg = "invalid token in key".into();
                 let tkn = format!("{}", tkn);
                 return Err(ParseTomlError::new(
@@ -463,7 +463,7 @@ impl TomlNode {
             parser.builder.finish_node();
             Ok(())
         } else {
-            let (ln, col) = muncher.cursor_position();
+            let (col, ln) = muncher.cursor_position();
             let msg = "invalid token in key".into();
             let tkn = format!("{}", text);
             Err(ParseTomlError::new(
@@ -509,7 +509,7 @@ impl TomlNode {
                 } else {
                     "no token".into()
                 };
-                let (ln, col) = muncher.cursor_position();
+                let (col, ln) = muncher.cursor_position();
                 return Err(ParseTomlError::new(
                     msg.into(),
                     TomlErrorKind::UnexpectedToken { tkn, ln, col },
@@ -674,7 +674,7 @@ impl TomlNode {
                 } else {
                     "no token".into()
                 };
-                let (ln, col) = muncher.cursor_position();
+                let (col, ln) = muncher.cursor_position();
                 return Err(ParseTomlError::new(
                     msg.into(),
                     TomlErrorKind::UnexpectedToken { tkn, ln, col },
@@ -809,7 +809,7 @@ impl TomlNode {
             // Some('"') => TomlNode::double_str(muncher, parser)?,
             Some(ch) if ch.is_ascii() => TomlNode::ident_heading(muncher, parser)?,
             Some(tkn) => {
-                let (ln, col) = muncher.cursor_position();
+                let (col, ln) = muncher.cursor_position();
                 let msg = "invalid heading token".into();
                 let tkn = format!("{}", tkn);
                 return Err(ParseTomlError::new(
@@ -920,7 +920,7 @@ impl Tokenizer {
                 Some(tkn) => {
                     let msg = "toml file must be key values or tables".into();
                     let tkn = format!("{}", tkn);
-                    let (ln, col) = muncher.cursor_position();
+                    let (col, ln) = muncher.cursor_position();
                     return Err(ParseTomlError::new(
                         msg,
                         TomlErrorKind::UnexpectedToken { tkn, ln, col },

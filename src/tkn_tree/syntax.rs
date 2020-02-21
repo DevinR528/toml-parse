@@ -216,6 +216,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
         // ftop.toml is 7 items long
         let input = read_to_string("examp/work.toml").expect("file read failed");
         let parsed = parse_it(&input).expect("parse failed");
+        // println!("{:#?}", parsed.syntax());
         assert_eq!(parsed.syntax().token_text(), input)
     }
 

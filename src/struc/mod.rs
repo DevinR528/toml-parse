@@ -178,14 +178,6 @@ impl Value {
 
 impl Into<Table> for SyntaxNode {
     fn into(self) -> Table {
-        // println!("{:?}", prev_siblings(&SyntaxElement::Node(self.clone())).collect::<Vec<_>>());
-        // let (comment, this) = if self.kind() == TomlKind::Comment {
-        //     println!("{:?}", self.next_sibling());
-        //     (Some(self.token_text()), self.next_sibling())
-        // } else {
-        //     (None, Some(self))
-        // };
-
         let header = self.first_child().map(|n| n.into()).unwrap();
         let pairs = self.children().skip(1).map(|n| n.into()).collect();
         Table {

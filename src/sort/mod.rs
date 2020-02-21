@@ -185,7 +185,15 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
     if start != kv.len() {
         keys.push((None, &kv[start..]))
     }
-    keys.sort_by(|chunk, other| chunk.0.cmp(&other.0));
+    keys.sort_by(|chunk, other| {
+        if chunk.0.is_none() {
+            return Ordering::Equal;
+        }
+        if other.0.is_none() {
+            return Ordering::Equal;
+        }
+        chunk.0.cmp(&other.0)
+    });
     keys.into_iter()
         .map(|p| p.1)
         .flatten()
@@ -233,13 +241,15 @@ fn add_table_sort_items(
                 match el {
                     SyntaxElement::Node(n) => match n.kind() {
                         TomlKind::Value => {
+                            builder.start_node(TomlKind::Value.into());
                             if n.first_child().map(|n| n.kind()) == Some(node_type) {
-                                builder.start_node(TomlKind::Value.into());
+                                builder.start_node(node_type.into());
                                 for sorted in sort_items(n.first_child().unwrap()) {
                                     add_element(sorted, builder);
                                 }
                                 builder.finish_node();
                             }
+                            builder.finish_node();
                         }
                         _ => add_node(&n, builder),
                     },
@@ -274,7 +284,7 @@ fn sort_items(node: SyntaxNode) -> Vec<SyntaxElement> {
         .collect::<Vec<_>>();
 
     let mut sorted = Vec::default();
-    let mut start = 0;
+    let mut current = 0;
     for (idx, key) in pos {
         let next_is_whitespace = children
             .get(idx + 1)
@@ -282,13 +292,22 @@ fn sort_items(node: SyntaxNode) -> Vec<SyntaxElement> {
             == Some(true);
 
         let idx = if next_is_whitespace { idx + 1 } else { idx };
-        sorted.push((key, &children[start..=idx]));
-        start = idx + 1;
+        sorted.push((key, &children[current..=idx]));
+        current = idx + 1;
     }
-    if start != children.len() {
-        sorted.push((None, &children[start..]))
+    if current != children.len() {
+        println!("{:?}", &children[current..]);
+        sorted.push((None, &children[current..]))
     }
-    sorted.sort_by(|chunk, other| chunk.0.cmp(&other.0));
+    sorted.sort_by(|chunk, other| {
+        if chunk.0.is_none() {
+            return Ordering::Equal;
+        }
+        if other.0.is_none() {
+            return Ordering::Equal;
+        }
+        chunk.0.cmp(&other.0)
+    });
     sorted.into_iter()
         .map(|p| p.1)
         .flatten()
@@ -466,8 +485,7 @@ alpha = "beta"
         let sorted = sort_toml_items(&parsed, &HEADER);
         println!("{}", sorted.token_text());
 
-        // idempotent
-        assert!(parsed.deep_eq(&sorted));
+        assert!(!parsed.deep_eq(&sorted));
         assert_eq!(sorted.text_range(), parsed.text_range());
     }
 }

@@ -90,6 +90,12 @@ impl fmt::Display for Space {
             SpaceValue::Indent{ level, alignment, } => {
                 write!(f, "\n{}", " ".repeat((level * USER_INDENT_SIZE + alignment) as usize))
             },
+            SpaceValue::MultiLF(count) => {
+                write!(f, "{}", "\n".repeat(count as usize))
+            }
+            SpaceValue::MultiSpace(count) => {
+                write!(f, "{}", " ".repeat(count as usize))
+            }
             SpaceValue::None => write!(f, ""),
             _ => {
                 // unreachable!("no other writable variants")
@@ -99,29 +105,20 @@ impl fmt::Display for Space {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct WhiteSpace {
     pub(crate) space_before: Space,
     pub(crate) space_after: Space,
 }
 
+impl AsRef<WhiteSpace> for WhiteSpace {
+    fn as_ref(&self) -> &Self {
+        self
+    } 
+}
+
 impl WhiteSpace {
-    pub(crate) fn new(element: &SyntaxElement) -> WhiteSpace {
-        match &element {
-            SyntaxElement::Node(node) => WhiteSpace::from_node(&node),
-            SyntaxElement::Token(token) => WhiteSpace::from_token(&token),
-        }
-    }
-
-    pub(crate) fn from_node(node: &SyntaxNode) -> WhiteSpace {
-        // must skip first siblings_with_tokens returns 'me' token as first
-        let mut previous = node.siblings_with_tokens(Direction::Prev).skip(1);
-        let mut next = node.siblings_with_tokens(Direction::Next).skip(1);
-
-        let (space_before, space_after) = filter_nodes(previous.next(), next.next());
-        Self { space_before, space_after }
-    }
-
-    pub(crate) fn from_token(token: &SyntaxToken) -> WhiteSpace {
+    pub(crate) fn new(token: &SyntaxToken) -> WhiteSpace {
         let (space_before, space_after) = match (token.prev_token(), token.next_token()) {
             (Some(pre), Some(post)) => (Space::before(pre), Space::after(post)),
             (Some(pre), _) => (Space::before(pre), Space::empty_after()),
@@ -130,6 +127,130 @@ impl WhiteSpace {
         };
 
         Self { space_before, space_after }
+    }
+
+    pub(crate) fn from_rule(space: &Space, l_blk: &Block, r_blk: &Block) -> WhiteSpace {
+        match space.loc {
+            SpaceLoc::Before => {
+                let space_before =
+                    Space { loc: space.loc, value: process_space_value(r_blk, space) };
+
+                Self { space_before, space_after: Space::empty_after() }
+            }
+            SpaceLoc::After => {
+                let space_after =
+                    Space { loc: SpaceLoc::Before, value: process_space_value(l_blk, space) };
+                Self { space_before: space_after, space_after: Space::empty_after() }
+            }
+            SpaceLoc::Around => {
+                let space_before =
+                    Space { loc: SpaceLoc::Before, value: process_space_value(r_blk, space) };
+                Self { space_before, space_after: r_blk.whitespace().space_after }
+            }
+        }
+    }
+
+    /// Returns true if `space` a `SpaceRule` matches `Whitespace` value.
+    pub(crate) fn match_space_before(&self, space: Space) -> bool {
+        use SpaceValue::*;
+        if self.space_before.value == space.value {
+            return true;
+        }
+        match space.value {
+            Single => match self.space_before.value {
+                Single => true,
+                _ => false,
+            },
+            SingleOrNewline => match self.space_before.value {
+                Single | Newline | Indent{ .. } => true,
+                _ => false,
+            },
+            SingleOptionalNewline => match self.space_before.value {
+                Single | Newline | Indent{ .. } => true,
+                _ => false,
+            },
+            // TODO make sure valid
+            Newline => match self.space_before.value {
+                Newline | Indent{ .. } => true,
+                _ => false,
+            },
+            NoneOrNewline => match self.space_before.value {
+                Newline | Indent{ .. } => true,
+                _ => false,
+            },
+            NoneOptionalNewline => match self.space_before.value {
+                Newline | Indent{ .. } => true,
+                _ => false,
+            },
+            // TODO from here on the rules never set these they will
+            // never be checked.
+            MultiSpace(len) => match self.space_before.value {
+                Single => len == 1,
+                MultiSpace(num) => len == num,
+                _ => false,
+            },
+            MultiLF(len) => match self.space_before.value {
+                Newline | Indent{ .. } => len == 1,
+                MultiLF(num) => len == num,
+                _ => false,
+            },
+            Indent{ .. } => match self.space_before.value {
+                Newline | Indent{ .. } => true,
+                MultiLF(len) => len == 1,
+                _ => false,
+            },
+            None => None == self.space_before.value,
+        }
+    }
+
+    /// Returns true if `space` a `SpaceRule` matches `Whitespace` value.
+    pub(crate) fn match_space_after(&self, space: Space) -> bool {
+        use SpaceValue::*;
+        if self.space_after.value == space.value {
+            return true;
+        }
+        match space.value {
+            Single => match self.space_after.value {
+                Single => true,
+                _ => false,
+            },
+            SingleOrNewline => match self.space_after.value {
+                Single | Newline | MultiLF(_) | Indent{ .. } => true,
+                _ => false,
+            },
+            SingleOptionalNewline => match self.space_after.value {
+                Single | Newline | MultiLF(_) | Indent{ .. } => true,
+                _ => false,
+            },
+            // TODO make sure valid
+            Newline => match self.space_after.value {
+                Newline | MultiLF(_) | Indent{ .. } => true,
+                _ => false,
+            },
+            NoneOrNewline => match self.space_after.value {
+                Newline | MultiLF(_) | Indent{ .. } => true,
+                _ => false,
+            },
+            NoneOptionalNewline => match self.space_after.value {
+                Newline | MultiLF(_) | Indent{ .. } => true,
+                _ => false,
+            },
+            // TODO from here on the rules never set these they will
+            // never be checked.
+            MultiSpace(_len) => match self.space_after.value {
+                Single | MultiSpace(_) => true,
+                _ => false,
+            },
+            MultiLF(_len) => match self.space_after.value {
+                Newline | MultiLF(_) | Indent{ .. } => true,
+                _ => false,
+            },
+            Indent{ .. } => match self.space_after.value {
+                Newline | MultiLF(_) | Indent{ .. } => true,
+                _ => false,
+            },
+            None => None == self.space_after.value,
+        }
     }
 }
 fn is_ws(token: &SyntaxToken) -> bool {
@@ -183,27 +304,29 @@ fn filter_nodes(pre: Option<SyntaxElement>, post: Option<SyntaxElement>) -> (Spa
     }
 }
 
-// /// TODO some left block parents may have diff contains, check when SpaceLoc::After
-// fn process_space_value(blk: &Block, space: &SpacingRule) -> SpaceValue {
-//     use SpaceValue::*;
-//     match space.space.value {
-//         Newline | MultiLF(_) => Newline,
-//         Single | MultiSpace(_) => Single,
-//         NoneOptionalNewline | NoneOrNewline => {
-//             if blk.siblings_contain("\n") {
-//                 Newline
-//             } else {
-//                 SpaceValue::None
-//             }
-//         }
-//         SingleOptionalNewline | SingleOrNewline => {
-//             if blk.siblings_contain("\n") {
-//                 Newline
-//             } else {
-//                 Single
-//             }
-//         }
-//         Indent {level, alignment, } => Indent { level, alignment, },
-//         None => space.space.value,
-//     }
-// }
+/// TODO some left block parents may have diff contains, check when SpaceLoc::After
+fn process_space_value(blk: &Block, space: &Space) -> SpaceValue {
+    use SpaceValue::*;
+    match space.value {
+        Newline => Newline,
+        MultiLF(len) => MultiLF(len),
+        Single => Single,
+        MultiSpace(len) => MultiSpace(len),
+        NoneOptionalNewline | NoneOrNewline => {
+            if blk.parents_contain("\n") {
+                Newline
+            } else {
+                SpaceValue::None
+            }
+        }
+        SingleOptionalNewline | SingleOrNewline => {
+            if blk.parents_contain("\n") {
+                Newline
+            } else {
+                Single
+            }
+        }
+        Indent {level, alignment, } => Indent { level, alignment, },
+        None => space.value,
+    }
+}

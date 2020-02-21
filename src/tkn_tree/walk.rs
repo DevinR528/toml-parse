@@ -23,6 +23,12 @@ pub fn walk_tokens(node: &SyntaxNode) -> impl Iterator<Item = SyntaxToken> {
         _ => None,
     })
 }
+pub fn walk_tokens_non_ws(node: &SyntaxNode) -> impl Iterator<Item = SyntaxToken> {
+    walk(node).filter_map(|element| match element {
+        SyntaxElement::Token(token) if token.kind() != TomlKind::Whitespace => Some(token),
+        _ => None,
+    })
+}
 pub fn walk_nodes(node: &SyntaxNode) -> impl Iterator<Item = SyntaxNode> {
     walk(node).filter_map(|element| match element {
         SyntaxElement::Node(node) => Some(node),

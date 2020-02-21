@@ -114,29 +114,28 @@ pub enum TomlKind {
     /// Triple quote, used for literal strings.
     TripleQuote,
 
-    ///
+    /// `+`
     Plus,
-    ///
+    /// `-`
     Minus,
-    ///
+    /// `=`
     Equal,
-    ///
+    /// `#`
     Hash,
-
-    ///
+    /// `,`
     Dot,
-    ///
+    /// `,`
     Comma,
-    ///
+    /// `:`
     Colon,
 
-    ///
+    /// opening brace `{`.
     OpenCurly,
-    ///
+    /// closing brace `}`.
     CloseCurly,
-    ///
+    /// opening brace `[`.
     OpenBrace,
-    ///
+    /// closing brace `]`.
     CloseBrace,
 
     /// All whitespace tokens, newline, indent,
