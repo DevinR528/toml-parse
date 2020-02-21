@@ -1,18 +1,8 @@
 use std::cmp::Ordering;
 
-use rowan::{
-    Checkpoint, Children, GreenNode, GreenNodeBuilder, GreenToken, SyntaxKind, SyntaxText,
-    TextRange, TextUnit, TokenAtOffset,
-};
+use rowan::{GreenNode, GreenNodeBuilder};
 
-use super::tkn_tree::{
-    parse_it,
-    walk::{
-        next_siblings, prev_non_whitespace_sibling, prev_siblings, walk_nodes, walk_non_whitespace,
-        walk_tokens, walk,
-    },
-    SyntaxNodeExtTrait, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
-};
+use super::tkn_tree::{SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, TomlKind};
 
 /// Each `Matcher` field when matched to a heading or key token
 /// will be matched with `.contains()`.
@@ -194,11 +184,7 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
         }
         chunk.0.cmp(&other.0)
     });
-    keys.into_iter()
-        .map(|p| p.1)
-        .flatten()
-        .cloned()
-        .collect()
+    keys.into_iter().map(|p| p.1).flatten().cloned().collect()
 }
 
 fn match_key(node: &SyntaxElement, keys: &[&str]) -> bool {
@@ -308,11 +294,7 @@ fn sort_items(node: SyntaxNode) -> Vec<SyntaxElement> {
         }
         chunk.0.cmp(&other.0)
     });
-    sorted.into_iter()
-        .map(|p| p.1)
-        .flatten()
-        .cloned()
-        .collect()
+    sorted.into_iter().map(|p| p.1).flatten().cloned().collect()
 }
 
 fn add_node(node: &SyntaxNode, builder: &mut GreenNodeBuilder) {
@@ -347,6 +329,7 @@ fn add_element(node: SyntaxElement, builder: &mut GreenNodeBuilder) {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::tkn_tree::{parse_it, walk::walk};
     use std::fs::read_to_string;
 
     const HEADER: Matcher<'static> = Matcher {
@@ -355,7 +338,7 @@ mod test {
         heading_key: &[("[workspace]", "members")],
         value: TomlKind::Array,
     };
-    
+
     fn print_overlaping(sorted: &SyntaxNode, parsed: &SyntaxNode) {
         for (p, s) in walk(parsed).zip(walk(sorted)) {
             println!("PARSED={:?} SORTED={:?}", p, s);

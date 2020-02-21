@@ -1,18 +1,9 @@
 use std::cmp::Ordering;
 
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-
 pub(self) use super::common::{self, err};
 pub(self) use super::tkn_tree;
 
-use tkn_tree::{
-    parse_it,
-    walk::{
-        next_siblings, prev_non_whitespace_sibling, prev_siblings, walk_nodes, walk_non_whitespace,
-        walk_tokens,
-    },
-    SyntaxNodeExtTrait, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
-};
+use tkn_tree::{parse_it, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken, TomlKind};
 
 mod date;
 use date::TomlDate;
@@ -190,11 +181,6 @@ impl Into<Table> for SyntaxNode {
 
 impl Into<Heading> for SyntaxNode {
     fn into(self) -> Heading {
-        let is_seg = self
-            .children_with_tokens()
-            .map(|el| el.kind())
-            .any(|k| k == TomlKind::SegIdent);
-
         let mut header = self.token_text();
         if header.contains('[') {
             header = header.split('[').collect::<Vec<_>>()[1].to_string();
@@ -707,7 +693,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
         let parse_cmp = parsed.clone();
         assert_eq!(parsed, parse_cmp);
         {
-            let mut deps = parsed.get_table_mut("dependencies").unwrap();
+            let deps = parsed.get_table_mut("dependencies").unwrap();
             deps.sort();
         }
         parsed.sort_matching("dependencies.");
@@ -722,7 +708,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
         let parse_cmp = parsed.clone();
         assert_eq!(parsed, parse_cmp);
         {
-            let mut deps = parsed.get_table_mut("dependencies").unwrap();
+            let deps = parsed.get_table_mut("dependencies").unwrap();
             deps.sort();
         }
         parsed.sort_matching("dependencies.");
@@ -733,16 +719,16 @@ inline-table = { date = 1988-02-03T10:32:10, }
     fn sort_fend() {
         let input = read_to_string("examp/fend.toml").expect("file read failed");
         let mut parsed = Toml::new(&input);
-        
-        // let parse_cmp = parsed.clone();
-        // assert_eq!(parsed, parse_cmp);
-        // {
-        //     let mut deps = parsed.get_table_mut("dependencies").unwrap();
-        //     deps.sort();
-        // }
-        // parsed.sort_matching("dependencies.");
+
+        let parse_cmp = parsed.clone();
+        assert_eq!(parsed, parse_cmp);
+        {
+            let deps = parsed.get_table_mut("dependencies").unwrap();
+            deps.sort();
+        }
+        parsed.sort_matching("dependencies.");
         println!("{:#?}", parsed);
-        // assert_ne!(parsed, parse_cmp);
+        assert_ne!(parsed, parse_cmp);
     }
 
     #[test]
@@ -753,7 +739,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
         assert_eq!(parsed, parse_cmp);
         {
             // sorts items of a table
-            let mut deps = parsed.get_table_mut("dependencies").unwrap();
+            let deps = parsed.get_table_mut("dependencies").unwrap();
             deps.sort();
         }
         // sorts tables by last segment
@@ -765,7 +751,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     fn sort_work() {
         let input = read_to_string("examp/work.toml").expect("file read failed");
         let mut parsed = Toml::new(&input);
-        let mut members = parsed
+        let members = parsed
             .get_table_mut("workspace")
             .unwrap()
             .get_mut("members")

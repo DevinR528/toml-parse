@@ -1,11 +1,9 @@
 use rowan::SmolStr;
-use std::ops::Range;
-
-type TextRange = Range<usize>;
 
 /// An enum representing either a `Node` or a `Token`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Element {
+    #[allow(dead_code)]
     Node(TomlNode),
     Token(TomlToken),
 }
@@ -28,67 +26,16 @@ impl PartialEq<TomlToken> for Element {
     }
 }
 
-impl Element {
-    pub fn is_whitespace(&self) -> bool {
-        match self {
-            Self::Node(_) => false,
-            Self::Token(tkn) => tkn.kind() == TomlKind::Whitespace,
-        }
-    }
-    pub fn kind(&self) -> TomlKind {
-        match self {
-            Self::Node(node) => node.kind(),
-            Self::Token(tkn) => tkn.kind(),
-        }
-    }
-    pub fn as_node(&self) -> Option<&TomlNode> {
-        match self {
-            Element::Node(node) => Some(node),
-            Element::Token(_token) => None,
-        }
-    }
-    pub fn as_token(&self) -> Option<&TomlToken> {
-        match self {
-            Element::Token(token) => Some(token),
-            Element::Node(_node) => None,
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TomlNode {
     pub(crate) kind: TomlKind,
     pub(crate) text: SmolStr,
 }
 
-impl TomlNode {
-    /// Returns self wrapped in `Element`, this clones self.
-    pub fn to_ele(&self) -> Element {
-        Element::Node(self.clone())
-    }
-    pub fn kind(&self) -> TomlKind {
-        self.kind
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TomlToken {
     pub(crate) kind: TomlKind,
     pub(crate) text: SmolStr,
-}
-
-impl TomlToken {
-    /// Returns self wrapped in `Element`, this clones self.
-    pub fn to_ele(&self) -> Element {
-        Element::Token(self.clone())
-    }
-
-    pub fn kind(&self) -> TomlKind {
-        self.kind
-    }
-    pub fn text(&self) -> &SmolStr {
-        &self.text
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

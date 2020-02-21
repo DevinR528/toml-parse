@@ -3,13 +3,7 @@ use std::fmt;
 
 use rowan::Direction;
 
-use super::tkn_tree::{
-    walk::{
-        next_siblings, prev_non_whitespace_sibling, prev_siblings, walk_nodes, walk_non_whitespace,
-        walk_tokens, walk,
-    },
-    SyntaxNodeExtTrait, SyntaxElement, SyntaxNode, SyntaxToken, TomlKind,
-};
+use super::tkn_tree::{SyntaxElement, SyntaxToken, TomlKind};
 use super::ws::WhiteSpace;
 
 #[derive(Debug, Clone)]
@@ -28,10 +22,7 @@ impl fmt::Display for Block {
 impl Block {
     pub fn new(tkn: SyntaxToken) -> Block {
         let whitespace = Cell::new(WhiteSpace::new(&tkn));
-        Self {
-            tkn,
-            whitespace,
-        }
+        Self { tkn, whitespace }
     }
 
     pub fn kind(&self) -> TomlKind {
@@ -53,13 +44,16 @@ impl Block {
                 _ => false,
             }
         };
-        if self.tkn.parent()
+        if self
+            .tkn
+            .parent()
             .siblings_with_tokens(Direction::Next)
             .any(newline)
         {
             return true;
         }
-        self.tkn.parent()
+        self.tkn
+            .parent()
             .siblings_with_tokens(Direction::Next)
             .any(newline)
     }

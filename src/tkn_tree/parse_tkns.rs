@@ -7,8 +7,8 @@ use super::kinds::TomlKind::{self, *};
 use chrono::{NaiveDate, NaiveTime};
 
 use super::common::{
-    cmp_tokens, ARRAY_ITEMS, BOOL_END, DATE_CHAR, DATE_END, DATE_LIKE, DATE_TIME, EOL, IDENT_END,
-    INLINE_ITEMS, INT_END, KEY_END, NUM_END, SEG_END, TIME_CHAR, WHITESPACE,
+    cmp_tokens, BOOL_END, DATE_CHAR, DATE_END, DATE_LIKE, DATE_TIME, EOL, IDENT_END, INT_END,
+    KEY_END, NUM_END, SEG_END, TIME_CHAR, WHITESPACE,
 };
 use super::kinds::{Element, TomlNode, TomlToken};
 use super::syntax::Parser;
@@ -138,9 +138,7 @@ impl TomlToken {
     /// Returns Element if comma was found. The last item
     /// in an array may or may not have a comma.
     fn maybe_comma(muncher: &mut Muncher) -> Option<Element> {
-        let start = muncher.position();
         if muncher.eat_comma() {
-            let end = start + 1;
             Some(Element::Token(Self {
                 kind: Comma,
                 text: SmolStr::new(","),
@@ -150,12 +148,6 @@ impl TomlToken {
         }
     }
 
-    fn colon(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
-        assert!(muncher.eat_colon());
-        parser.builder.token(Colon.into(), SmolStr::new(":"));
-        Ok(())
-    }
-
     fn dot(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         assert!(muncher.eat_dot());
         parser.builder.token(Dot.into(), SmolStr::new("."));
@@ -163,9 +155,7 @@ impl TomlToken {
     }
 
     fn maybe_dot(muncher: &mut Muncher) -> Option<Element> {
-        let start = muncher.position();
         if muncher.eat_dot() {
-            let end = start + 1;
             Some(Element::Token(Self {
                 kind: Dot,
                 text: SmolStr::new("."),
@@ -315,7 +305,6 @@ impl TomlNode {
     fn comment(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Comment.into());
 
-        
         TomlToken::hash(muncher, parser)?;
         TomlToken::comment_text(muncher, parser)?;
 
@@ -323,7 +312,7 @@ impl TomlNode {
             let (kind, text) = ws.into();
             parser.builder.token(kind.into(), text)
         }
-        
+
         parser.builder.finish_node();
         Ok(())
     }
@@ -774,11 +763,23 @@ impl TomlNode {
             parser.builder.start_node(SegIdent.into());
 
             TomlToken::ident_seg(muncher, parser)?;
+            if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+                let (kind, text) = ws.into();
+                parser.builder.token(kind.into(), text)
+            }
             TomlToken::dot(muncher, parser)?;
+            if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+                let (kind, text) = ws.into();
+                parser.builder.token(kind.into(), text)
+            }
             TomlToken::ident_seg(muncher, parser)?;
 
             // for all segments after the first we loop for each
             for _ in 2..text.split('.').count() {
+                if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+                    let (kind, text) = ws.into();
+                    parser.builder.token(kind.into(), text)
+                }
                 if let Some(dot) = TomlToken::maybe_dot(muncher) {
                     let (kind, text) = dot.into();
                     parser.builder.token(kind.into(), text);
@@ -897,11 +898,6 @@ impl Tokenizer {
     fn parse_file(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Root.into());
         loop {
-            // if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
-            //     println!("NEVER EAT WS TOP LEVEL");
-            //     let (kind, text) = ws.into();
-            //     parser.builder.token(kind.into(), text)
-            // }
             if muncher.is_done() {
                 parser.builder.token(EoF.into(), SmolStr::default());
                 break;

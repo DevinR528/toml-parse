@@ -1,11 +1,9 @@
-use std::fmt;
+use rowan::{GreenNode, GreenNodeBuilder};
 
-use rowan::{GreenNode, GreenNodeBuilder, SmolStr, WalkEvent};
-
-use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
+use super::err::TomlResult;
 use super::kinds::TomlKind::{self, *};
 use super::parse_tkns::Tokenizer;
-use super::walk;
+use super::walk::{walk, walk_tokens};
 
 pub type SyntaxNode = rowan::SyntaxNode<TomlLang>;
 pub type SyntaxToken = rowan::SyntaxToken<TomlLang>;
@@ -40,18 +38,6 @@ impl rowan::Language for TomlLang {
     }
 }
 
-fn walk(node: &SyntaxNode) -> impl Iterator<Item = SyntaxElement> {
-    node.preorder_with_tokens().filter_map(|event| match event {
-        WalkEvent::Enter(element) => Some(element),
-        WalkEvent::Leave(_) => None,
-    })
-}
-fn walk_tokens(node: &SyntaxNode) -> impl Iterator<Item = SyntaxToken> {
-    walk(node).filter_map(|element| match element {
-        SyntaxElement::Token(token) => Some(token),
-        _ => None,
-    })
-}
 impl SyntaxNodeExtTrait for SyntaxNode {
     fn token_text(&self) -> String {
         walk_tokens(self).fold(String::default(), |mut s, tkn| {
@@ -67,12 +53,12 @@ impl SyntaxNodeExtTrait for SyntaxNode {
                     if n1.token_text() != n2.token_text() {
                         return false;
                     }
-                },
+                }
                 (SyntaxElement::Token(t1), SyntaxElement::Token(t2)) => {
                     if t1.text() != t2.text() {
                         return false;
                     }
-                },
+                }
                 (_, _) => return false,
             }
             if a.kind() != b.kind() {
@@ -113,11 +99,30 @@ impl Parser {
     pub fn parse(self) -> TomlResult<ParsedToml> {
         let green: GreenNode = self.builder.finish();
         // Construct a `SyntaxNode` from `GreenNode`,
-        // using errors as the root data.
+        // Since we only want valid toml errors cause a bubble up
+        // failure, not passed along in the tree as they can be.
         Ok(ParsedToml { green })
     }
 }
 
+/// Parses the input into a [`Result<ParsedToml>`][ParsedToml].
+///
+/// This contains a [`GreenNode`][rowan::GreenNode] and
+/// by calling `.syntax()` on `ParsedToml` you get the `TomlKind::Root`
+/// [`SyntaxNode`][rowan::SyntaxNode].
+///
+/// # Examples
+/// ```
+/// use toml_parse::{parse_it, TomlKind};
+///
+/// let toml =
+/// "[valid]
+/// toml = \"stuff\"
+/// ";
+///
+/// let root_node = parse_it(toml).unwrap().syntax();
+/// assert_eq!(root_node.first_child().unwrap().kind(), TomlKind::Table)
+/// ```
 pub fn parse_it(input: &str) -> TomlResult<ParsedToml> {
     let parse_builder = Parser::new();
     let parsed = Tokenizer::parse(input, parse_builder)?;
@@ -130,7 +135,7 @@ mod tests {
     use std::fs::read_to_string;
 
     #[test]
-    fn parents() {
+    fn table_comment() {
         let file = "[table]\n# hello there";
         let parsed = parse_it(file).expect("parse failed");
         let root = parsed.syntax();
