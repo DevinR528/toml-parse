@@ -1,5 +1,5 @@
 //! Sort the given toml file based on SyntaxElements.
-//! 
+//!
 //! Using a `Matcher` to specify the tables and values that have items that should be sorted
 //! call `sort_toml_items` then compare the resulting tree using `SyntaxNodeExtTrait::deep_eq`.
 
