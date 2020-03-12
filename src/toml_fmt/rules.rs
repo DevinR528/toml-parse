@@ -55,7 +55,7 @@ pub(crate) fn lf_after_heading(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpac
         && !r_blk.whitespace().match_space_before(LF_BEFORE)
         && l_blk.kind() == TomlKind::CloseBrace
     {
-        println!("MATCH {:#?} {:#?}", l_blk, r_blk);
+        // println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&LF_BEFORE, l_blk, r_blk));
     }
     None
@@ -71,7 +71,9 @@ pub(crate) fn lf_after_table(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace>
     } else {
         false
     };
-    println!("{:?}", not_first_table);
+
+    let not_comment = l_blk.kind() != TomlKind::CommentText;
+
     if r_blk
         .token()
         .ancestors()
@@ -79,8 +81,8 @@ pub(crate) fn lf_after_table(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace>
         && !r_blk.whitespace().match_space_before(MULTI_LF_BEFORE)
         && r_blk.kind() == TomlKind::OpenBrace
         && not_first_table
+        && not_comment
     {
-        println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&MULTI_LF_BEFORE, l_blk, r_blk));
     }
     None
@@ -88,7 +90,7 @@ pub(crate) fn lf_after_table(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace>
 
 pub(crate) fn space_lf_after_comma(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace> {
     if !r_blk.whitespace().match_space_before(MAYBE_LF_BEFORE) && l_blk.kind() == TomlKind::Comma {
-        println!("MATCH {:#?} {:#?}", l_blk, r_blk);
+        // println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&MAYBE_LF_BEFORE, l_blk, r_blk));
     }
     None
@@ -98,7 +100,7 @@ pub(crate) fn space_lf_after_inline_table_open(l_blk: &Block, r_blk: &Block) -> 
     if !r_blk.whitespace().match_space_before(MAYBE_LF_BEFORE)
         && l_blk.kind() == TomlKind::OpenCurly
     {
-        println!("MATCH {:#?} {:#?}", l_blk, r_blk);
+        // println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&MAYBE_LF_BEFORE, l_blk, r_blk));
     }
     None
@@ -111,7 +113,7 @@ pub(crate) fn space_lf_before_inline_table_close(
     if !r_blk.whitespace().match_space_before(MAYBE_LF_BEFORE)
         && r_blk.kind() == TomlKind::CloseCurly
     {
-        println!("MATCH {:#?} {:#?}", l_blk, r_blk);
+        // println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&MAYBE_LF_BEFORE, l_blk, r_blk));
     }
     None
@@ -125,7 +127,7 @@ pub(crate) fn space_lf_after_array_open(l_blk: &Block, r_blk: &Block) -> Option<
         && !r_blk.whitespace().match_space_before(MAYBE_LF_BEFORE)
         && l_blk.kind() == TomlKind::OpenBrace
     {
-        println!("MATCH {:#?} {:#?}", l_blk, r_blk);
+        // println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&MAYBE_LF_BEFORE, l_blk, r_blk));
     }
     None
@@ -139,7 +141,7 @@ pub(crate) fn space_lf_before_array_close(l_blk: &Block, r_blk: &Block) -> Optio
         && !r_blk.whitespace().match_space_before(MAYBE_LF_BEFORE)
         && r_blk.kind() == TomlKind::CloseBrace
     {
-        println!("MATCH {:#?} {:#?}", l_blk, r_blk);
+        // println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&MAYBE_LF_BEFORE, l_blk, r_blk));
     }
     None
@@ -152,7 +154,7 @@ pub(crate) fn space_around_eq(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace
         .any(|n| n.kind() == TomlKind::KeyValue)
         && !r_blk.whitespace().match_space_before(SPACE_BEFORE)
     {
-        println!("MATCH {:#?} {:#?}", l_blk, r_blk);
+        // println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&SPACE_BEFORE, l_blk, r_blk));
     }
     None
@@ -165,7 +167,7 @@ pub(crate) fn none_around_dot(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace
         .any(|n| n.kind() == TomlKind::SegIdent)
         && !r_blk.whitespace().match_space_before(NONE)
     {
-        println!("MATCH {:#?} {:#?}", l_blk, r_blk);
+        // println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&NONE, l_blk, r_blk));
     }
     None
@@ -210,7 +212,7 @@ pub(crate) fn indent_after_comma(l_blk: &Block, r_blk: &Block) -> Option<WhiteSp
     } else {
         (false, (0, 0))
     };
-    println!("{} {} {}", has_indent, level, alignment);
+    // println!("{} {} {}", has_indent, level, alignment);
     if l_blk
         .token()
         .ancestors()
@@ -220,19 +222,24 @@ pub(crate) fn indent_after_comma(l_blk: &Block, r_blk: &Block) -> Option<WhiteSp
             value: SpaceValue::Indent { level, alignment },
             loc: SpaceLoc::Before,
         };
-        println!(
-            "FIRST {:#?} {:#?} {}",
-            l_blk,
-            r_blk,
-            r_blk.whitespace().space_before == indent
-        );
-
+        // println!(
+        //     "FIRST {:#?} {:#?} {}",
+        //     l_blk,
+        //     r_blk,
+        //     r_blk.whitespace().space_before == indent
+        // );
+        if r_blk.kind() == TomlKind::CloseBrace {
+            let eol = Space {
+                value: SpaceValue::Newline,
+                loc: SpaceLoc::Before,
+            };
+            return Some(WhiteSpace::from_rule(&eol, l_blk, r_blk));
+        }
+        
         if l_blk.kind() == TomlKind::Comma
             && has_indent
             && r_blk.whitespace().space_before != indent
         {
-            println!("SECOND");
-            println!("MATCH {:#?} {:#?}", l_blk, r_blk);
             return Some(WhiteSpace::from_rule(&indent, l_blk, r_blk));
         }
     }

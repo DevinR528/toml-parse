@@ -8,13 +8,14 @@ use super::tkn_tree::{SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, TomlKind};
 /// will be matched with `.contains()`.
 pub struct Matcher<'a> {
     /// Toml headings with braces `[heading]`.
-    heading: &'a [&'a str],
+    pub heading: &'a [&'a str],
     /// Toml segmented heading without braces.
-    segmented: &'a [&'a str],
+    pub segmented: &'a [&'a str],
     /// Toml heading with braces `[heading]` and the key
     /// of the array to sort.
-    heading_key: &'a [(&'a str, &'a str)],
-    value: TomlKind,
+    pub heading_key: &'a [(&'a str, &'a str)],
+    /// The value to match for (most likely `TomlKind::Array`).
+    pub value: TomlKind,
 }
 
 fn split_seg_last<S: AsRef<str>>(s: S) -> String {
@@ -187,7 +188,7 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
     keys.into_iter().map(|p| p.1).flatten().cloned().collect()
 }
 
-fn match_key(node: &SyntaxElement, keys: &[&str]) -> bool {
+fn match_key(node: &SyntaxElement, keys: &[&str], node_type: TomlKind) -> bool {
     match node
         .as_node()
         .map(|n| n.first_child().map(|n| n.kind()))
@@ -200,6 +201,15 @@ fn match_key(node: &SyntaxElement, keys: &[&str]) -> bool {
                 .unwrap()
                 .token_text()
                 .contains(h)
+            && node.as_node()
+                .unwrap()
+                .children()
+                .find(|n| n.kind() == TomlKind::Value)
+                .map(|n| {
+                    n.first_child()
+                        .map(|n| n.kind() == node_type)
+                })
+                .flatten() == Some(true)
         }),
         _ => false,
     }
@@ -220,7 +230,7 @@ fn add_table_sort_items(
     }
 
     for ele in node.children_with_tokens().skip(1) {
-        if match_key(&ele, key) {
+        if match_key(&ele, key, node_type) {
             // this is a `KeyValue` node
             builder.start_node(ele.kind().into());
             for el in ele.as_node().unwrap().children_with_tokens() {
@@ -282,7 +292,6 @@ fn sort_items(node: SyntaxNode) -> Vec<SyntaxElement> {
         current = idx + 1;
     }
     if current != children.len() {
-        println!("{:?}", &children[current..]);
         sorted.push((None, &children[current..]))
     }
     sorted.sort_by(|chunk, other| {
@@ -323,152 +332,5 @@ fn add_element(node: SyntaxElement, builder: &mut GreenNodeBuilder) {
             builder.finish_node();
         }
         SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::tkn_tree::{parse_it, walk::walk};
-    use std::fs::read_to_string;
-
-    const HEADER: Matcher<'static> = Matcher {
-        heading: &["[dependencies]"],
-        segmented: &["dependencies."],
-        heading_key: &[("[workspace]", "members")],
-        value: TomlKind::Array,
-    };
-
-    fn print_overlaping(sorted: &SyntaxNode, parsed: &SyntaxNode) {
-        for (p, s) in walk(parsed).zip(walk(sorted)) {
-            println!("PARSED={:?} SORTED={:?}", p, s);
-        }
-    }
-    #[test]
-    fn comment_tkns() {
-        let file = r#"# comment
-[dependencies]
-number = 1234
-# comment
-alpha = "beta"
-"#;
-        let parsed = parse_it(file).expect("parse failed").syntax();
-        let parsed2 = parse_it(file).expect("parse failed").syntax();
-
-        assert!(parsed.deep_eq(&parsed2));
-
-        let sorted = sort_toml_items(&parsed, &HEADER);
-
-        assert!(!parsed.deep_eq(&sorted));
-        assert_eq!(sorted.text_range(), parsed.text_range());
-    }
-
-    #[test]
-    fn sort_tkns_ftop() {
-        let input = read_to_string("examp/ftop.toml").expect("file read failed");
-        let parsed = parse_it(&input).expect("parse failed").syntax();
-        let parsed2 = parse_it(&input).expect("parse failed").syntax();
-
-        assert!(parsed.deep_eq(&parsed2));
-
-        let sorted = sort_toml_items(&parsed, &HEADER);
-        println!("{}", sorted.token_text());
-        print_overlaping(&sorted, &parsed);
-
-        assert!(!parsed.deep_eq(&sorted));
-        assert_eq!(sorted.text_range(), parsed.text_range());
-    }
-
-    #[test]
-    fn sort_tkns_seg() {
-        let input = read_to_string("examp/seg_sort.toml").expect("file read failed");
-        let parsed = parse_it(&input).expect("parse failed").syntax();
-        let parsed2 = parse_it(&input).expect("parse failed").syntax();
-
-        assert!(parsed.deep_eq(&parsed2));
-        // println!("{}", parsed.token_text());
-
-        let sorted = sort_toml_items(&parsed, &HEADER);
-        println!("{}", sorted.token_text());
-        assert!(!parsed.deep_eq(&sorted));
-        assert_eq!(sorted.text_range(), parsed.text_range());
-    }
-
-    #[test]
-    fn sort_tkns_seg_ok() {
-        let input = read_to_string("examp/seg_sort_ok.toml").expect("file read failed");
-        let parsed = parse_it(&input).expect("parse failed").syntax();
-        let parsed2 = parse_it(&input).expect("parse failed").syntax();
-
-        assert!(parsed.deep_eq(&parsed2));
-
-        let sorted = sort_toml_items(&parsed, &HEADER);
-        assert!(parsed.deep_eq(&sorted));
-        assert_eq!(sorted.text_range(), parsed.text_range());
-    }
-
-    #[test]
-    fn sort_tkns_work() {
-        let input = read_to_string("examp/work.toml").expect("file read failed");
-        let parsed = parse_it(&input).expect("parse failed").syntax();
-        let parsed2 = parse_it(&input).expect("parse failed").syntax();
-
-        assert!(parsed.deep_eq(&parsed2));
-        println!("{:#?}", parsed);
-
-        let sorted = sort_toml_items(&parsed, &HEADER);
-        println!("{:#?}", sorted);
-
-        assert!(!parsed.deep_eq(&sorted));
-        assert_eq!(sorted.text_range(), parsed.text_range());
-    }
-    #[test]
-    fn sort_tkns_fend() {
-        let input = read_to_string("examp/fend.toml").expect("file read failed");
-        let parsed = parse_it(&input).expect("parse failed").syntax();
-        let parsed2 = parse_it(&input).expect("parse failed").syntax();
-
-        assert!(parsed.deep_eq(&parsed2));
-        // println!("{:#?}", parsed);
-        // println!("{}", parsed.token_text());
-
-        let sorted = sort_toml_items(&parsed, &HEADER);
-        // print_overlaping(&sorted, &parsed);
-        println!("{:#?}", sorted);
-        // println!("{}", sorted.token_text());
-
-        assert!(!parsed.deep_eq(&sorted));
-        assert_eq!(sorted.text_range(), parsed.text_range());
-    }
-
-    #[test]
-    fn sort_tkns_right() {
-        let input = read_to_string("examp/right.toml").expect("file read failed");
-        let parsed = parse_it(&input).expect("parse failed").syntax();
-        let parsed2 = parse_it(&input).expect("parse failed").syntax();
-
-        assert!(parsed.deep_eq(&parsed2));
-
-        let sorted = sort_toml_items(&parsed, &HEADER);
-
-        // idempotent
-        assert!(parsed.deep_eq(&sorted));
-        assert_eq!(sorted.text_range(), parsed.text_range());
-    }
-
-    #[test]
-    fn sort_tkns_win() {
-        let input = read_to_string("examp/win.toml").expect("file read failed");
-        let parsed = parse_it(&input).expect("parse failed").syntax();
-        let parsed2 = parse_it(&input).expect("parse failed").syntax();
-
-        assert!(parsed.deep_eq(&parsed2));
-        println!("{:#?}", parsed);
-
-        let sorted = sort_toml_items(&parsed, &HEADER);
-        println!("{}", sorted.token_text());
-
-        assert!(!parsed.deep_eq(&sorted));
-        assert_eq!(sorted.text_range(), parsed.text_range());
     }
 }

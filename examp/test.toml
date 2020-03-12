@@ -18,6 +18,8 @@ proc-macro2 = "0.4"
 quote = { version = "0.6", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 structopt = "0.2"
+
+# test comment with newline
 syn-select = "0.1.4"
 tempfile = "3.0"
 termcolor = "1.0"

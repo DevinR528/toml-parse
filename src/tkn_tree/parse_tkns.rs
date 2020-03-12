@@ -689,7 +689,6 @@ impl TomlNode {
             if muncher.peek() == Some(&'}') {
                 break;
             }
-            // println!("{:?}", muncher.peek());
             TomlNode::inline_key_value(muncher, parser)?;
             // an inline table and an array are the only two node types that
             // have comma's optionally eat comma and any following whitespace.
