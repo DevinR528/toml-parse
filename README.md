@@ -10,7 +10,7 @@ The most important thing about this toml parser is that it maintains the structu
 ## Use
 ```toml
 [dependencies]
-par-trie = "0.1"
+toml-parse = "0.1"
 ```
 
 ## Examples
