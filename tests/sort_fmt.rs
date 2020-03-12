@@ -1,6 +1,6 @@
 use std::fs::read_to_string;
 
-use toml_parse::{parse_it, sort_toml_items, Matcher, SyntaxNodeExtTrait, TomlKind, Formatter};
+use toml_parse::{parse_it, sort_toml_items, Formatter, Matcher, SyntaxNodeExtTrait, TomlKind};
 
 const HEADER: Matcher<'static> = Matcher {
     heading: &["[dependencies]"],
@@ -55,7 +55,7 @@ fn sort_fmt_seg_sort_ok() {
     assert!(parsed.deep_eq(&parsed2));
 
     let sorted = sort_toml_items(&parsed, &HEADER);
-    
+
     // NO SORTING
     assert!(parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());

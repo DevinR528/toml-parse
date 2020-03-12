@@ -9,6 +9,7 @@ pub use sort::{sort_toml_items, Matcher};
 pub use tkn_tree::{
     parse_it,
     walk::{walk, walk_tokens, walk_tokens_non_ws},
-    ParsedToml, Parser, SyntaxElement, SyntaxNode, SyntaxToken, Tokenizer, TomlKind, SyntaxNodeExtTrait,
+    ParsedToml, Parser, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken, Tokenizer,
+    TomlKind,
 };
 pub use toml_fmt::Formatter;

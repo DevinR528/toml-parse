@@ -235,7 +235,7 @@ pub(crate) fn indent_after_comma(l_blk: &Block, r_blk: &Block) -> Option<WhiteSp
             };
             return Some(WhiteSpace::from_rule(&eol, l_blk, r_blk));
         }
-        
+
         if l_blk.kind() == TomlKind::Comma
             && has_indent
             && r_blk.whitespace().space_before != indent

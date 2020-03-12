@@ -201,15 +201,14 @@ fn match_key(node: &SyntaxElement, keys: &[&str], node_type: TomlKind) -> bool {
                 .unwrap()
                 .token_text()
                 .contains(h)
-            && node.as_node()
-                .unwrap()
-                .children()
-                .find(|n| n.kind() == TomlKind::Value)
-                .map(|n| {
-                    n.first_child()
-                        .map(|n| n.kind() == node_type)
-                })
-                .flatten() == Some(true)
+                && node
+                    .as_node()
+                    .unwrap()
+                    .children()
+                    .find(|n| n.kind() == TomlKind::Value)
+                    .map(|n| n.first_child().map(|n| n.kind() == node_type))
+                    .flatten()
+                    == Some(true)
         }),
         _ => false,
     }

@@ -1,6 +1,8 @@
 use std::fs::read_to_string;
 
-use toml_parse::{walk, parse_it, sort_toml_items, SyntaxNode, Matcher, SyntaxNodeExtTrait, TomlKind};
+use toml_parse::{
+    parse_it, sort_toml_items, walk, Matcher, SyntaxNode, SyntaxNodeExtTrait, TomlKind,
+};
 
 const HEADER: Matcher<'static> = Matcher {
     heading: &["[dependencies]"],
