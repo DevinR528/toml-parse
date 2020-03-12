@@ -107,14 +107,13 @@ fn sorted_tables_with_tokens(
     }
 
     for seg in segmented {
+        #[rustfmt::skip]
         tables.sort_by(|chunk, other| {
-            let chunk_matches_heading = chunk.0.as_ref().map(|head| {
-                head.contains(&format!("[{}", seg))
-            }) == Some(true);
-            let other_matches_heading = other.0.as_ref().map(|head| {
-                head.contains(&format!("[{}", seg))
-            }) == Some(true);
-    
+            let chunk_matches_heading = chunk.0.as_ref()
+                .map(|head| head.contains(&format!("[{}", seg))) == Some(true);
+            let other_matches_heading = other.0.as_ref()
+                .map(|head| head.contains(&format!("[{}", seg))) == Some(true);
+
             if chunk_matches_heading && other_matches_heading {
                 chunk
                     .0
@@ -217,11 +216,7 @@ fn match_key(node: &SyntaxElement, keys: &[&str]) -> bool {
     }
 }
 
-fn add_table_sort_items(
-    node: &SyntaxNode,
-    builder: &mut GreenNodeBuilder,
-    key: &[&str],
-) {
+fn add_table_sort_items(node: &SyntaxNode, builder: &mut GreenNodeBuilder, key: &[&str]) {
     builder.start_node(node.kind().into());
 
     if let Some(heading) = node.first_child() {
@@ -242,11 +237,13 @@ fn add_table_sort_items(
                             if n.first_child().map(|n| n.kind()) == Some(TomlKind::Array) {
                                 // the node type like TomlKind::Array
                                 builder.start_node(TomlKind::Array.into());
-                                builder.token(TomlKind::OpenBrace.into(), rowan::SmolStr::from("["));
+                                builder
+                                    .token(TomlKind::OpenBrace.into(), rowan::SmolStr::from("["));
                                 for sorted in sort_items(n.first_child().unwrap()) {
                                     add_array_items(sorted, builder);
                                 }
-                                builder.token(TomlKind::CloseBrace.into(), rowan::SmolStr::from("]"));
+                                builder
+                                    .token(TomlKind::CloseBrace.into(), rowan::SmolStr::from("]"));
                                 builder.finish_node();
                             }
                             builder.finish_node();
@@ -336,28 +333,37 @@ fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder) {
     match node {
         SyntaxElement::Node(node) => {
             if node.kind() == TomlKind::ArrayItem {
-                match node.children_with_tokens().map(|el| el.kind()).collect::<Vec<TomlKind>>().as_slice() {
+                match node
+                    .children_with_tokens()
+                    .map(|el| el.kind())
+                    .collect::<Vec<TomlKind>>()
+                    .as_slice()
+                {
                     [.., TomlKind::Comma, TomlKind::Whitespace] => {
                         builder.start_node(node.kind().into());
                         for kid in node.children_with_tokens() {
                             match kid {
                                 SyntaxElement::Node(n) => add_node(&n, builder),
-                                SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+                                SyntaxElement::Token(t) => {
+                                    builder.token(t.kind().into(), t.text().clone())
+                                }
                             }
                         }
                         builder.finish_node();
-                    },
+                    }
                     [.., _, _] | [_] | [] => {
                         builder.start_node(node.kind().into());
                         for kid in node.children_with_tokens() {
                             match kid {
                                 SyntaxElement::Node(n) => add_node(&n, builder),
-                                SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+                                SyntaxElement::Token(t) => {
+                                    builder.token(t.kind().into(), t.text().clone())
+                                }
                             }
                         }
                         builder.token(TomlKind::Comma.into(), rowan::SmolStr::from(","));
                         builder.finish_node();
-                    },
+                    }
                 }
                 return;
             }

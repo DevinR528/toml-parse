@@ -8,11 +8,7 @@ const HEADERS: [&str; 3] = [
     "[build-dependencies]",
 ];
 
-const HEADER_SEG: [&str; 3] = [
-    "dependencies.",
-    "dev-dependencies.",
-    "build-dependencies.",
-];
+const HEADER_SEG: [&str; 3] = ["dependencies.", "dev-dependencies.", "build-dependencies."];
 
 const MATCHER: Matcher<'_> = Matcher {
     heading: &HEADERS,
@@ -119,7 +115,7 @@ fn sort_fmt_ftop() {
     let input = read_to_string("examp/ftop.toml").expect("file read failed");
     let parsed = parse_it(&input).expect("parse failed").syntax();
     let parsed2 = parse_it(&input).expect("parse failed").syntax();
-    
+
     print!("{:#?}", parsed);
 
     assert!(parsed.deep_eq(&parsed2));
@@ -247,7 +243,7 @@ fn sort_fmt_right_seg_header() {
     assert!(parsed.deep_eq(&parsed2));
 
     let sorted = sort_toml_items(&parsed, &MATCHER);
-    
+
     print!("{}", sorted.token_text());
 
     assert!(parsed.deep_eq(&sorted));
