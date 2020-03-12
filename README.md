@@ -2,7 +2,7 @@
 ## Parser of Toml powerd by  [Muncher](https://github.com/DevinR528/muncher)
 
 [![Build Status](https://travis-ci.com/DevinR528/toml-parse.svg?branch=master)](https://travis-ci.com/DevinR528/toml-parse)
-[![Latest Version](https://img.shields.io/crates/v/par-trie.svg)](https://crates.io/crates/toml-parse)
+[![Latest Version](https://img.shields.io/crates/v/toml-parse.svg)](https://crates.io/crates/toml-parse)
 
 [Documentation](https://docs.rs/toml-parse)
 

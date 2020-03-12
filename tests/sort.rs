@@ -8,7 +8,6 @@ const HEADER: Matcher<'static> = Matcher {
     heading: &["[dependencies]"],
     segmented: &["dependencies."],
     heading_key: &[("[workspace]", "members")],
-    value: TomlKind::Array,
 };
 
 fn print_overlaping(sorted: &SyntaxNode, parsed: &SyntaxNode) {

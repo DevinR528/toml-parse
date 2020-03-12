@@ -32,5 +32,5 @@ version = "0.15"
 default-features = false
 features = ["full", "parsing", "printing", "visit-mut"]
 
-[workspace.members]
-this = "that"
+[workspace]
+members = ["that", "this"]

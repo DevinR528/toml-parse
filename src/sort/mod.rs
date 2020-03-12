@@ -19,13 +19,13 @@ pub struct Matcher<'a> {
     /// Toml heading with braces `[heading]` and the key
     /// of the array to sort.
     pub heading_key: &'a [(&'a str, &'a str)],
-    /// The value to match for (most likely `TomlKind::Array`).
-    pub value: TomlKind,
 }
 
 fn split_seg_last<S: AsRef<str>>(s: S) -> String {
     let open_close: &[char] = &['[', ']'];
-    s.as_ref()
+    let heading = s.as_ref();
+
+    heading
         .replace(open_close, "")
         .split('.')
         .last()
@@ -47,7 +47,7 @@ pub fn sort_toml_items(root: &SyntaxNode, matcher: &Matcher<'_>) -> SyntaxNode {
                 if match_table(node, matcher.heading) {
                     add_sorted_table(node, &mut builder)
                 } else if match_table(node, &head) {
-                    add_table_sort_items(node, &mut builder, &key, matcher.value)
+                    add_table_sort_items(node, &mut builder, &key)
                 } else {
                     add_element(ele, &mut builder)
                 }
@@ -106,28 +106,26 @@ fn sorted_tables_with_tokens(
         tables.push((None, kids[start..].to_vec()))
     }
 
-    tables.sort_by(|chunk, other| {
-        let chunk_matches_heading = chunk.0.as_ref().map(|head| {
-            segmented
-                .iter()
-                .any(|seg| head.contains(&format!("[{}", seg)))
-        }) == Some(true);
-        let other_matches_heading = other.0.as_ref().map(|head| {
-            segmented
-                .iter()
-                .any(|seg| head.contains(&format!("[{}", seg)))
-        }) == Some(true);
-
-        if chunk_matches_heading && other_matches_heading {
-            chunk
-                .0
-                .as_ref()
-                .map(split_seg_last)
-                .cmp(&other.0.as_ref().map(split_seg_last))
-        } else {
-            Ordering::Equal
-        }
-    });
+    for seg in segmented {
+        tables.sort_by(|chunk, other| {
+            let chunk_matches_heading = chunk.0.as_ref().map(|head| {
+                head.contains(&format!("[{}", seg))
+            }) == Some(true);
+            let other_matches_heading = other.0.as_ref().map(|head| {
+                head.contains(&format!("[{}", seg))
+            }) == Some(true);
+    
+            if chunk_matches_heading && other_matches_heading {
+                chunk
+                    .0
+                    .as_ref()
+                    .map(split_seg_last)
+                    .cmp(&other.0.as_ref().map(split_seg_last))
+            } else {
+                Ordering::Equal
+            }
+        });
+    }
 
     tables.into_iter().map(|p| p.1).flatten()
 }
@@ -193,7 +191,7 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
     keys.into_iter().map(|p| p.1).flatten().cloned().collect()
 }
 
-fn match_key(node: &SyntaxElement, keys: &[&str], node_type: TomlKind) -> bool {
+fn match_key(node: &SyntaxElement, keys: &[&str]) -> bool {
     match node
         .as_node()
         .map(|n| n.first_child().map(|n| n.kind()))
@@ -211,7 +209,7 @@ fn match_key(node: &SyntaxElement, keys: &[&str], node_type: TomlKind) -> bool {
                     .unwrap()
                     .children()
                     .find(|n| n.kind() == TomlKind::Value)
-                    .map(|n| n.first_child().map(|n| n.kind() == node_type))
+                    .map(|n| n.first_child().map(|n| n.kind() == TomlKind::Array))
                     .flatten()
                     == Some(true)
         }),
@@ -223,7 +221,6 @@ fn add_table_sort_items(
     node: &SyntaxNode,
     builder: &mut GreenNodeBuilder,
     key: &[&str],
-    node_type: TomlKind,
 ) {
     builder.start_node(node.kind().into());
 
@@ -234,7 +231,7 @@ fn add_table_sort_items(
     }
 
     for ele in node.children_with_tokens().skip(1) {
-        if match_key(&ele, key, node_type) {
+        if match_key(&ele, key) {
             // this is a `KeyValue` node
             builder.start_node(ele.kind().into());
             for el in ele.as_node().unwrap().children_with_tokens() {
@@ -242,11 +239,14 @@ fn add_table_sort_items(
                     SyntaxElement::Node(n) => match n.kind() {
                         TomlKind::Value => {
                             builder.start_node(TomlKind::Value.into());
-                            if n.first_child().map(|n| n.kind()) == Some(node_type) {
-                                builder.start_node(node_type.into());
+                            if n.first_child().map(|n| n.kind()) == Some(TomlKind::Array) {
+                                // the node type like TomlKind::Array
+                                builder.start_node(TomlKind::Array.into());
+                                builder.token(TomlKind::OpenBrace.into(), rowan::SmolStr::from("["));
                                 for sorted in sort_items(n.first_child().unwrap()) {
-                                    add_element(sorted, builder);
+                                    add_array_items(sorted, builder);
                                 }
+                                builder.token(TomlKind::CloseBrace.into(), rowan::SmolStr::from("]"));
                                 builder.finish_node();
                             }
                             builder.finish_node();
@@ -266,7 +266,16 @@ fn add_table_sort_items(
 }
 
 fn sort_items(node: SyntaxNode) -> Vec<SyntaxElement> {
-    let children = node.children_with_tokens().collect::<Vec<_>>();
+    println!("{:#?}", node);
+    // node is TomlKind::Array
+    let children = node
+        .children_with_tokens()
+        .filter(|n| {
+            let n = n.as_token().map(|n| n.kind());
+            n != Some(TomlKind::CloseBrace) && n != Some(TomlKind::OpenBrace)
+        })
+        .collect::<Vec<_>>();
+
     let pos = children
         .iter()
         .enumerate()
@@ -321,6 +330,48 @@ fn add_node(node: &SyntaxNode, builder: &mut GreenNodeBuilder) {
     }
 
     builder.finish_node();
+}
+
+fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder) {
+    match node {
+        SyntaxElement::Node(node) => {
+            if node.kind() == TomlKind::ArrayItem {
+                match node.children_with_tokens().map(|el| el.kind()).collect::<Vec<TomlKind>>().as_slice() {
+                    [.., TomlKind::Comma, TomlKind::Whitespace] => {
+                        builder.start_node(node.kind().into());
+                        for kid in node.children_with_tokens() {
+                            match kid {
+                                SyntaxElement::Node(n) => add_node(&n, builder),
+                                SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+                            }
+                        }
+                        builder.finish_node();
+                    },
+                    [.., _, _] | [_] | [] => {
+                        builder.start_node(node.kind().into());
+                        for kid in node.children_with_tokens() {
+                            match kid {
+                                SyntaxElement::Node(n) => add_node(&n, builder),
+                                SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+                            }
+                        }
+                        builder.token(TomlKind::Comma.into(), rowan::SmolStr::from(","));
+                        builder.finish_node();
+                    },
+                }
+                return;
+            }
+            builder.start_node(node.kind().into());
+            for kid in node.children_with_tokens() {
+                match kid {
+                    SyntaxElement::Node(n) => add_node(&n, builder),
+                    SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+                }
+            }
+            builder.finish_node();
+        }
+        SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+    }
 }
 
 fn add_element(node: SyntaxElement, builder: &mut GreenNodeBuilder) {

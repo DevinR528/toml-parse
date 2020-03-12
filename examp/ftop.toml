@@ -25,3 +25,5 @@ default-features = false
 features = ["full", "parsing", "printing", "visit-mut"]
 
 # oh yea
+[workspace]
+members = ["z", "b", "A", "f", "g"]
