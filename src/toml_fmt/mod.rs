@@ -16,13 +16,16 @@ use ws::WhiteSpace;
 
 type RuleFn = Box<dyn for<'a> Fn(&'a Block, &'a Block) -> Option<WhiteSpace>>;
 
+/// Formatter impl's `Display` so once `format()` has been called, the resulting
+/// text can be retrieved.
 pub struct Formatter {
-    pub blocks: Vec<Block>,
-    pub rules: Vec<(TomlKind, RuleFn)>,
-    pub formatted: String,
+    blocks: Vec<Block>,
+    rules: Vec<(TomlKind, RuleFn)>,
+    formatted: String,
 }
 
 impl Formatter {
+    /// Creates new instance of `Formatter` for formatting a tree of `rowan::SyntaxNode`s.
     pub fn new(root: &SyntaxNode) -> Formatter {
         Self {
             blocks: walk_tokens_non_ws(root).map(Block::new).collect(),
@@ -30,7 +33,7 @@ impl Formatter {
             formatted: String::default(),
         }
     }
-
+    /// `format` the tree of `rowan::SyntaxElements` according to valid toml.
     pub fn format(mut self) -> Self {
         let zipped = self.blocks.iter().zip(self.blocks.iter().skip(1));
 
@@ -70,6 +73,12 @@ impl fmt::Debug for Formatter {
             )
             .field("formatted", &self.formatted)
             .finish()
+    }
+}
+
+impl fmt::Display for Formatter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.formatted)
     }
 }
 

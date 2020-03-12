@@ -27,7 +27,7 @@ alpha = "beta"
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    assert_ne!(file, Formatter::new(&sorted).format().formatted)
+    assert_ne!(file, Formatter::new(&sorted).format().to_string())
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn sort_fmt_seg_sort() {
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    assert_ne!(input, Formatter::new(&sorted).format().formatted)
+    assert_ne!(input, Formatter::new(&sorted).format().to_string())
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn sort_fmt_seg_sort_ok() {
     assert!(parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    assert_eq!(input, Formatter::new(&sorted).format().formatted)
+    assert_eq!(input, Formatter::new(&sorted).format().to_string())
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn sort_fmt_seg() {
     assert!(parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    assert_eq!(input, Formatter::new(&sorted).format().formatted)
+    assert_eq!(input, Formatter::new(&sorted).format().to_string())
 }
 
 #[test]
@@ -93,11 +93,11 @@ fn sort_fmt_fend() {
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    let fmted = Formatter::new(&sorted).format().formatted;
+    let fmted = Formatter::new(&sorted).format().to_string();
     assert_ne!(input, fmted);
 
     let idempotent = parse_it(&fmted).expect("parse failed").syntax();
-    assert_eq!(fmted, Formatter::new(&idempotent).format().formatted)
+    assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
 }
 
 #[test]
@@ -113,11 +113,11 @@ fn sort_fmt_ftop() {
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    let fmted = Formatter::new(&sorted).format().formatted;
+    let fmted = Formatter::new(&sorted).format().to_string();
     assert_ne!(input, fmted);
 
     let idempotent = parse_it(&fmted).expect("parse failed").syntax();
-    assert_eq!(fmted, Formatter::new(&idempotent).format().formatted)
+    assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
 }
 
 #[test]
@@ -132,12 +132,12 @@ fn sort_fmt_obj_comma() {
 
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    let fmted = Formatter::new(&sorted).format().formatted;
+    let fmted = Formatter::new(&sorted).format().to_string();
     // REMOVED \n\n AFTER HEADING
     assert_ne!(input, fmted);
 
     let idempotent = parse_it(&fmted).expect("parse failed").syntax();
-    assert_eq!(fmted, Formatter::new(&idempotent).format().formatted)
+    assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
 }
 
 #[test]
@@ -152,11 +152,11 @@ fn sort_fmt_cmt_eol() {
 
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    let fmted = Formatter::new(&sorted).format().formatted;
+    let fmted = Formatter::new(&sorted).format().to_string();
     assert_ne!(input, fmted);
 
     let idempotent = parse_it(&fmted).expect("parse failed").syntax();
-    assert_eq!(fmted, Formatter::new(&idempotent).format().formatted)
+    assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
 }
 
 #[test]
@@ -172,11 +172,11 @@ fn sort_fmt_win() {
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    let fmted = Formatter::new(&sorted).format().formatted;
+    let fmted = Formatter::new(&sorted).format().to_string();
     assert_ne!(input, fmted);
 
     let idempotent = parse_it(&fmted).expect("parse failed").syntax();
-    assert_eq!(fmted, Formatter::new(&idempotent).format().formatted)
+    assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
 }
 
 #[test]
@@ -192,12 +192,12 @@ fn sort_fmt_work() {
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    let fmted = Formatter::new(&sorted).format().formatted;
+    let fmted = Formatter::new(&sorted).format().to_string();
 
     assert_ne!(input, fmted);
 
     let idempotent = parse_it(&fmted).expect("parse failed").syntax();
-    assert_eq!(fmted, Formatter::new(&idempotent).format().formatted)
+    assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
 }
 
 #[test]
@@ -213,10 +213,10 @@ fn sort_fmt_indent_work() {
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    let fmted = Formatter::new(&sorted).format().formatted;
+    let fmted = Formatter::new(&sorted).format().to_string();
 
     assert_ne!(input, fmted);
 
     let idempotent = parse_it(&fmted).expect("parse failed").syntax();
-    assert_eq!(fmted, Formatter::new(&idempotent).format().formatted)
+    assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
 }
