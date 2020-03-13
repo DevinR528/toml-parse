@@ -68,3 +68,12 @@ fn fmt_obj_comma() {
     let fmted = Formatter::new(&parsed).format();
     assert_ne!(fmted.to_string(), input);
 }
+
+#[test]
+fn fmt_array_table() {
+    let input = read_to_string("examp/arr_table.toml").expect("file read failed");
+    let parsed = parse_it(&input).expect("").syntax();
+    let fmted = Formatter::new(&parsed).format();
+    println!("{}", fmted);
+    assert_eq!(fmted.to_string(), input);
+}

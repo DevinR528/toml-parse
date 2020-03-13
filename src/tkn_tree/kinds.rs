@@ -97,6 +97,8 @@ pub enum TomlKind {
     Table,
     /// A table heading surounded by brackets.
     Heading,
+    /// An array of tables heading
+    ArrayHeading,
     /// A segmented `Heading` Ident.
     SegIdent,
     /// An inline table where the key is the "heading" and

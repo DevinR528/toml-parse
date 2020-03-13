@@ -5,3 +5,6 @@ members = [
     "third",
     "fourth",
 ]
+
+[[bin]]
+path = "here"

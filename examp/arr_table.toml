@@ -1,0 +1,5 @@
+[[bin]]
+path = "here"
+
+[[lib]]
+path = "there"

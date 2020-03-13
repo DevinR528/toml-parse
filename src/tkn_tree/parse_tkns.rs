@@ -467,10 +467,6 @@ impl TomlNode {
     /// and tables.
     fn value(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(Value.into());
-        // if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
-        //     let (kind, text) = ws.into();
-        //     parser.builder.token(kind.into(), text)
-        // }
         match muncher.peek() {
             Some('"') => TomlNode::string(muncher, parser),
             Some('\'') => TomlNode::single_str(muncher, parser),
@@ -803,10 +799,43 @@ impl TomlNode {
             parser.builder.token(kind.into(), text)
         }
 
-        TomlToken::open_brace(muncher, parser)?;
+        if muncher.seek(2).map(|s| s.starts_with("[[")) == Some(true) {
+            parser.builder.start_node(TomlKind::ArrayHeading.into());
+            TomlToken::open_brace(muncher, parser)?;
+            TomlToken::open_brace(muncher, parser)?;
+            
+            match muncher.peek() {
+                Some(ch) if ch.is_ascii() => TomlNode::ident_heading(muncher, parser)?,
+                Some(tkn) => {
+                    let (col, ln) = muncher.cursor_position();
+                    let msg = "invalid heading token".into();
+                    let tkn = format!("{}", tkn);
+                    return Err(ParseTomlError::new(
+                        msg,
+                        TomlErrorKind::UnexpectedToken { tkn, ln, col },
+                    ));
+                }
+                None => unreachable!("empty toml heading"),
+            };
+            // although this is an iterator it advances the cursor which is what we want
+            let _eaten = muncher.eat_until(|c| c == &']');
 
+            TomlToken::close_brace(muncher, parser)?;
+            TomlToken::close_brace(muncher, parser)?;
+
+            if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
+                let (kind, text) = ws.into();
+                parser.builder.token(kind.into(), text)
+            }
+            // finishes ArrayHeading
+            parser.builder.finish_node();
+            // finishes Heading
+            parser.builder.finish_node();
+            return Ok(());
+        };
+
+        TomlToken::open_brace(muncher, parser)?;
         match muncher.peek() {
-            // Some('"') => TomlNode::double_str(muncher, parser)?,
             Some(ch) if ch.is_ascii() => TomlNode::ident_heading(muncher, parser)?,
             Some(tkn) => {
                 let (col, ln) = muncher.cursor_position();
@@ -817,9 +846,9 @@ impl TomlNode {
                     TomlErrorKind::UnexpectedToken { tkn, ln, col },
                 ));
             }
-            None => todo!("heading NONE"),
+            None => unreachable!("empty toml heading"),
         };
-        // although this is an iterator it advances the cursor
+        // although this is an iterator it advances the cursor which is what we want
         let _eaten = muncher.eat_until(|c| c == &']');
 
         TomlToken::close_brace(muncher, parser)?;
@@ -845,10 +874,6 @@ impl TomlNode {
 
         TomlNode::heading(muncher, parser)?;
         loop {
-            // if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
-            //     let (kind, text) = ws.into();
-            //     parser.builder.token(kind.into(), text)
-            // }
             if muncher.seek(5).map(|s| s.contains('[')) == Some(true) {
                 break;
             }

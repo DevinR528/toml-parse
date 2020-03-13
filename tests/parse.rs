@@ -85,7 +85,7 @@ fn parse_seg_file() {
 fn parse_work_file() {
     let input = read_to_string("examp/work.toml").expect("file read failed");
     let parsed = parse_it(&input).expect("parse failed");
-    // println!("{:#?}", parsed.syntax());
+    println!("{:#?}", parsed.syntax());
     assert_eq!(parsed.syntax().token_text(), input)
 }
 

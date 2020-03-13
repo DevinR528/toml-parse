@@ -201,11 +201,13 @@ fn sort_fmt_work() {
     assert!(parsed.deep_eq(&parsed2));
 
     let sorted = sort_toml_items(&parsed, &MATCHER);
-
+    println!("{}", sorted.token_text());
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
     let fmted = Formatter::new(&sorted).format().to_string();
+
+    println!("{}", fmted);
 
     assert_ne!(input, fmted);
 

@@ -54,8 +54,8 @@ pub(crate) fn lf_after_heading(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpac
         .any(|n| n.kind() == TomlKind::Heading)
         && !r_blk.whitespace().match_space_before(LF_BEFORE)
         && l_blk.kind() == TomlKind::CloseBrace
+        && r_blk.token().parent().kind() != TomlKind::ArrayHeading
     {
-        // println!("MATCH {:#?} {:#?}", l_blk, r_blk);
         return Some(WhiteSpace::from_rule(&LF_BEFORE, l_blk, r_blk));
     }
     None
@@ -71,8 +71,8 @@ pub(crate) fn lf_after_table(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace>
     } else {
         false
     };
-
     let not_comment = l_blk.kind() != TomlKind::CommentText;
+    let not_array_table = r_blk.token().parent().kind() != TomlKind::ArrayHeading;
 
     if r_blk
         .token()
@@ -82,6 +82,7 @@ pub(crate) fn lf_after_table(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace>
         && r_blk.kind() == TomlKind::OpenBrace
         && not_first_table
         && not_comment
+        && not_array_table
     {
         return Some(WhiteSpace::from_rule(&MULTI_LF_BEFORE, l_blk, r_blk));
     }
