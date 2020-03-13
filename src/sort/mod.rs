@@ -239,8 +239,8 @@ fn add_table_sort_items(node: &SyntaxNode, builder: &mut GreenNodeBuilder, key: 
                                 builder.start_node(TomlKind::Array.into());
                                 builder
                                     .token(TomlKind::OpenBrace.into(), rowan::SmolStr::from("["));
-                                for sorted in sort_items(n.first_child().unwrap()) {
-                                    add_array_items(sorted, builder);
+                                for (end, sorted) in sort_items(n.first_child().unwrap()) {
+                                    add_array_items(sorted, builder, end);
                                 }
                                 builder
                                     .token(TomlKind::CloseBrace.into(), rowan::SmolStr::from("]"));
@@ -262,8 +262,7 @@ fn add_table_sort_items(node: &SyntaxNode, builder: &mut GreenNodeBuilder, key: 
     builder.finish_node();
 }
 
-fn sort_items(node: SyntaxNode) -> Vec<SyntaxElement> {
-    println!("{:#?}", node);
+fn sort_items(node: SyntaxNode) -> Vec<(bool, SyntaxElement)> {
     // node is TomlKind::Array
     let children = node
         .children_with_tokens()
@@ -313,7 +312,14 @@ fn sort_items(node: SyntaxNode) -> Vec<SyntaxElement> {
         }
         chunk.0.cmp(&other.0)
     });
-    sorted.into_iter().map(|p| p.1).flatten().cloned().collect()
+    let end = sorted.len() - 1;
+    sorted
+        .into_iter()
+        .flat_map(|p| p.1)
+        .cloned()
+        .enumerate()
+        .map(|(i, el)| (i == end, el))
+        .collect()
 }
 
 fn add_node(node: &SyntaxNode, builder: &mut GreenNodeBuilder) {
@@ -329,10 +335,12 @@ fn add_node(node: &SyntaxNode, builder: &mut GreenNodeBuilder) {
     builder.finish_node();
 }
 
-fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder) {
+// TODO This for now alters the tokens, it checks if each element has a comma and space
+// and removes it from the last element if it has comma and space ????
+fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder, end: bool) {
     match node {
         SyntaxElement::Node(node) => {
-            if node.kind() == TomlKind::ArrayItem {
+            if node.kind() == TomlKind::ArrayItem && !end && !node.token_text().contains("\n ") {
                 match node
                     .children_with_tokens()
                     .map(|el| el.kind())
@@ -340,6 +348,7 @@ fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder) {
                     .as_slice()
                 {
                     [.., TomlKind::Comma, TomlKind::Whitespace] => {
+                        // this is a normal ArrayItem with comma and space
                         builder.start_node(node.kind().into());
                         for kid in node.children_with_tokens() {
                             match kid {
@@ -352,6 +361,7 @@ fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder) {
                         builder.finish_node();
                     }
                     [.., _, _] | [_] | [] => {
+                        // these have no comma or space and aren't the last ele so add comma...
                         builder.start_node(node.kind().into());
                         for kid in node.children_with_tokens() {
                             match kid {
@@ -362,19 +372,37 @@ fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder) {
                             }
                         }
                         builder.token(TomlKind::Comma.into(), rowan::SmolStr::from(","));
+                        builder.token(TomlKind::Whitespace.into(), rowan::SmolStr::from(" "));
                         builder.finish_node();
                     }
                 }
-                return;
-            }
-            builder.start_node(node.kind().into());
-            for kid in node.children_with_tokens() {
-                match kid {
-                    SyntaxElement::Node(n) => add_node(&n, builder),
-                    SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+            } else if end && !node.token_text().contains("\n ") {
+                // removes last comma
+                builder.start_node(node.kind().into());
+                for kid in node.children_with_tokens() {
+                    match kid {
+                        SyntaxElement::Node(n) => add_node(&n, builder),
+                        SyntaxElement::Token(t) => {
+                            if t.kind() == TomlKind::Comma {
+                                builder.finish_node();
+                                return;
+                            }
+                            builder.token(t.kind().into(), t.text().clone())
+                        }
+                    }
                 }
+                builder.finish_node();
+            } else {
+                // we dont care what sequence of tokens are here just add em
+                builder.start_node(node.kind().into());
+                for kid in node.children_with_tokens() {
+                    match kid {
+                        SyntaxElement::Node(n) => add_node(&n, builder),
+                        SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+                    }
+                }
+                builder.finish_node();
             }
-            builder.finish_node();
         }
         SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
     }

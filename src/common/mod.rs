@@ -1,6 +1,6 @@
 pub(crate) mod err;
 
-/// TODO fix pass by ref
+/// FIXME fix pass by ref
 #[allow(clippy::trivially_copy_pass_by_ref)]
 pub fn cmp_tokens(ch: &char, chars: &[char]) -> bool {
     chars.iter().any(|c| c == ch)
@@ -36,13 +36,6 @@ impl<I: IntoIterator<Item = T>, T> GroupBy<T> for I {
 
 pub(crate) const EOL: &[char] = &['\n', '\r'];
 pub(crate) const WHITESPACE: &[char] = &[' ', '\n', '\t', '\r'];
-
-#[allow(unused)]
-pub(crate) const QUOTE: &[char] = &['\"', '\''];
-#[allow(unused)]
-pub(crate) const ARRAY_ITEMS: &[char] = &[',', ']'];
-#[allow(unused)]
-pub(crate) const INLINE_ITEMS: &[char] = &[',', '}'];
 
 pub(crate) const NUM_END: &[char] = &['\n', '\r', ',', ']', ' ', '}'];
 pub(crate) const INT_END: &[char] = &['\n', '\r', ',', '.', ']', ' ', '}'];

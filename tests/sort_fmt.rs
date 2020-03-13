@@ -1,6 +1,6 @@
 use std::fs::read_to_string;
 
-use toml_parse::{parse_it, sort_toml_items, Formatter, Matcher, SyntaxNodeExtTrait, TomlKind};
+use toml_parse::{parse_it, sort_toml_items, Formatter, Matcher, SyntaxNodeExtTrait};
 
 const HEADERS: [&str; 3] = [
     "[dependencies]",
