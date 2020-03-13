@@ -1,9 +1,9 @@
 [workspace]
 members = [
     "first",
-"second",
+    "second",
     "third",
-"fourth",
+    "fourth",
 ]
 
 # this is tabs not spaces

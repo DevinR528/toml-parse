@@ -57,9 +57,13 @@ fn fmt_seg() {
 #[test]
 fn fmt_indent_arr() {
     let input = read_to_string("examp/indent.toml").expect("file read failed");
+    let fixed = read_to_string("examp/indent.fix.toml").expect("file read failed");
+    println!("{:#?}", input);
     let parsed = parse_it(&input).expect("").syntax();
+    println!("{:#?}", parsed);
     let fmted = Formatter::new(&parsed).format();
-    assert_ne!(fmted.to_string(), input);
+    println!("{}", fmted.to_string());
+    assert_eq!(fmted.to_string(), fixed);
 }
 #[test]
 fn fmt_obj_comma() {
@@ -74,6 +78,14 @@ fn fmt_array_table() {
     let input = read_to_string("examp/arr_table.toml").expect("file read failed");
     let parsed = parse_it(&input).expect("").syntax();
     let fmted = Formatter::new(&parsed).format();
-    println!("{}", fmted);
     assert_eq!(fmted.to_string(), input);
+}
+
+#[test]
+fn fmt_clippy() {
+    let input = read_to_string("examp/clippy.toml").expect("file read failed");
+    let parsed = parse_it(&input).expect("").syntax();
+    let fmted = Formatter::new(&parsed).format();
+    println!("{}", fmted.to_string());
+    // assert_eq!(fmted.to_string(), input);
 }

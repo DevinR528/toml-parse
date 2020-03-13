@@ -1,0 +1,16 @@
+[dependencies]
+a = "1"
+c = "3"
+# comm
+b = "2"
+d = "4"
+
+[dependencies.alpha]
+version = "1"
+
+# it's a comment
+[dependencies.chi]
+version = "3"
+
+[dependencies.beta]
+version = "2"

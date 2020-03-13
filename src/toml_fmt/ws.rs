@@ -230,7 +230,14 @@ fn is_ws(token: &SyntaxToken) -> bool {
     token.kind() == TomlKind::Whitespace
 }
 
-pub(crate) fn calc_indent(len: u32) -> (u32, u32) {
+pub(crate) fn calc_indent(ws: &str) -> (u32, u32) {
+    let len = if ws.contains("\n ") {
+        ws.matches(" ").count() as u32
+    } else if ws.contains("\t") {
+        ws.matches("\t").count() as u32 * USER_INDENT_SIZE
+    } else {
+        0
+    };
     let level = len / USER_INDENT_SIZE;
     let alignment = len % USER_INDENT_SIZE;
     (level, alignment)
@@ -240,8 +247,8 @@ fn calc_space_value(tkn: &SyntaxToken) -> SpaceValue {
     let orig = tkn.text().as_str();
     let tkn_len = orig.chars().count();
     // indent is `\n\s\s\s\s` or some variation
-    if orig.contains('\n') && orig.contains(' ') {
-        let (level, alignment) = calc_indent(orig.matches(' ').count() as u32);
+    if orig.contains('\n') && (orig.contains(' ') || orig.contains('\t')) {
+        let (level, alignment) = calc_indent(orig);
         SpaceValue::Indent { level, alignment }
     // just new line
     } else if orig.contains('\n') {

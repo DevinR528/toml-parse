@@ -7,6 +7,8 @@ use super::block::Block;
 use super::tkn_tree::TomlKind;
 use super::ws::{calc_indent, Space, SpaceLoc, SpaceValue, WhiteSpace};
 
+const WS: &[&str] = &["\n ", "\n\t"];
+
 const LF_AFTER: Space = Space {
     value: SpaceValue::Newline,
     loc: SpaceLoc::After,
@@ -176,37 +178,58 @@ pub(crate) fn none_around_dot(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace
 
 #[allow(clippy::collapsible_if)]
 pub(crate) fn indent_after_comma(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace> {
-    let (has_indent, (level, alignment)) = if let Some(table) = r_blk
+    let (has_indent, (level, alignment)) = if let Some(arr_item) = r_blk
         .token()
         .ancestors()
         .find(|n| n.kind() == TomlKind::ArrayItem)
     {
-        if let Some(ws) = table.siblings_with_tokens(Direction::Prev).find(|el| {
+        if let Some(ws) = arr_item.siblings_with_tokens(Direction::Prev).find(|el| {
             el.as_token().map(|t| {
-                t.text().contains("\n ")
-                    && t.prev_sibling_or_token()
-                        .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
-                        .flatten()
-                        == Some(true)
+                println!("{:?}", t);
+                println!("{:?}", t.prev_sibling_or_token());
+                match t.text().as_bytes() {
+                    // `\n\s...`
+                    [10, 32, ..] => {
+                        t.prev_sibling_or_token()
+                            .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
+                            .flatten()
+                            == Some(true)
+                    }
+                    // `\n\t`
+                    [10, 9, ..] => {
+                        t.prev_sibling_or_token()
+                            .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
+                            .flatten()
+                            == Some(true)
+                    }
+                    [] | [_] | [_, _, ..] => false,
+                }
             }) == Some(true)
         }) {
-            (
-                true,
-                calc_indent(ws.as_token().unwrap().text().matches(' ').count() as u32),
-            )
-        } else if let Some(ws) = table.siblings_with_tokens(Direction::Next).find(|el| {
+            (true, calc_indent(ws.as_token().unwrap().text()))
+        } else if let Some(ws) = arr_item.siblings_with_tokens(Direction::Next).find(|el| {
             el.as_token().map(|t| {
-                t.text().contains("\n ")
-                    && t.prev_sibling_or_token()
-                        .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
-                        .flatten()
-                        == Some(true)
+                println!("{:?}", t.prev_sibling_or_token());
+                match t.text().as_bytes() {
+                    // `\n\s...`
+                    [10, 32, ..] => {
+                        t.prev_sibling_or_token()
+                            .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
+                            .flatten()
+                            == Some(true)
+                    }
+                    // `\n\t`
+                    [10, 9, ..] => {
+                        t.prev_sibling_or_token()
+                            .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
+                            .flatten()
+                            == Some(true)
+                    }
+                    [] | [_] | [_, _, ..] => false,
+                }
             }) == Some(true)
         }) {
-            (
-                true,
-                calc_indent(ws.as_token().unwrap().text().matches(' ').count() as u32),
-            )
+            (true, calc_indent(ws.as_token().unwrap().text()))
         } else {
             (false, (0, 0))
         }

@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "first",
+    "second",
+    "third",
+    "fourth",
+]
+
+[[bin]]
+path = "here"

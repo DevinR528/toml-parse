@@ -803,7 +803,7 @@ impl TomlNode {
             parser.builder.start_node(TomlKind::ArrayHeading.into());
             TomlToken::open_brace(muncher, parser)?;
             TomlToken::open_brace(muncher, parser)?;
-            
+
             match muncher.peek() {
                 Some(ch) if ch.is_ascii() => TomlNode::ident_heading(muncher, parser)?,
                 Some(tkn) => {
