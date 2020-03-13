@@ -12,8 +12,8 @@ description = "A bunch of helpful lints to avoid common pitfalls in Rust"
 repository = "https://github.com/rust-lang/rust-clippy"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-keywords = ["clippy", "lint", "plugin"]
-categories = ["development-tools", "development-tools::cargo-plugins"]
+keywords = [ "clippy", "lint", "plugin" ]
+categories = [ "development-tools", "development-tools::cargo-plugins" ]
 build = "build.rs"
 edition = "2018"
 publish = false
@@ -36,18 +36,18 @@ clippy_lints = { version = "0.0.212", path = "clippy_lints" }
 # end automatic update
 regex = "1"
 semver = "0.9"
-rustc_tools_util = { version = "0.2.0", path = "rustc_tools_util"}
+rustc_tools_util = { version = "0.2.0", path = "rustc_tools_util" }
 git2 = { version = "0.12", optional = true }
 tempfile = { version = "3.1.0", optional = true }
 lazy_static = "1.0"
 
 [dev-dependencies]
 cargo_metadata = "0.9.0"
-compiletest_rs = { version = "0.4.0", features = ["tmp"] }
+compiletest_rs = { version = "0.4.0", features = [ "tmp" ] }
 tester = "0.7"
 lazy_static = "1.0"
 clippy-mini-macro-test = { version = "0.2", path = "mini-macro" }
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = [ "derive" ] }
 derive-new = "0.5"
 
 # A noop dependency that changes in the Rust repository, it's a bit of a hack.
@@ -56,8 +56,8 @@ derive-new = "0.5"
 rustc-workspace-hack = "1.0.0"
 
 [build-dependencies]
-rustc_tools_util = { version = "0.2.0", path = "rustc_tools_util"}
+rustc_tools_util = { version = "0.2.0", path = "rustc_tools_util" }
 
 [features]
-deny-warnings = []
-integration = ["git2", "tempfile"]
+deny-warnings = [ ]
+integration = [ "git2", "tempfile" ]

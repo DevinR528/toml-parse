@@ -15,7 +15,7 @@ pub struct Block {
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.whitespace.get().space_before)?;
-        write!(f, "{:#?}", self.tkn.text())
+        write!(f, "{}", self.tkn.text())
     }
 }
 

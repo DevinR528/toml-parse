@@ -31,7 +31,7 @@ pub(crate) enum SpaceValue {
     /// Number of new lines this is only for `Whitespace` held by `Block`.
     MultiLF(u32),
     /// Number of spaces that indent is made of `'\n\s\s\s\s'`.
-    Indent { level: u32, alignment: u32 },
+    Indent { level: u32, alignment: u32, is_tab: bool },
 }
 
 #[allow(dead_code)]
@@ -93,10 +93,15 @@ impl fmt::Display for Space {
         match self.value {
             SpaceValue::Single => write!(f, " "),
             SpaceValue::Newline => writeln!(f),
-            SpaceValue::Indent { level, alignment } => write!(
+            SpaceValue::Indent { level, alignment, is_tab: false } => write!(
                 f,
                 "\n{}",
                 " ".repeat((level * USER_INDENT_SIZE + alignment) as usize)
+            ),
+            SpaceValue::Indent { level, is_tab: true, .. } => write!(
+                f,
+                "\n{}",
+                "\t".repeat(level as usize)
             ),
             SpaceValue::MultiLF(count) => write!(f, "{}", "\n".repeat(count as usize)),
             SpaceValue::MultiSpace(count) => write!(f, "{}", " ".repeat(count as usize)),
@@ -249,7 +254,7 @@ fn calc_space_value(tkn: &SyntaxToken) -> SpaceValue {
     // indent is `\n\s\s\s\s` or some variation
     if orig.contains('\n') && (orig.contains(' ') || orig.contains('\t')) {
         let (level, alignment) = calc_indent(orig);
-        SpaceValue::Indent { level, alignment }
+        SpaceValue::Indent { level, alignment, is_tab: orig.contains('\t') }
     // just new line
     } else if orig.contains('\n') {
         if tkn_len == 1 {
@@ -291,7 +296,7 @@ fn process_space_value(blk: &Block, space: &Space) -> SpaceValue {
                 Single
             }
         }
-        Indent { level, alignment } => Indent { level, alignment },
+        Indent { level, alignment, is_tab } => Indent { level, alignment, is_tab },
         None => space.value,
     }
 }
