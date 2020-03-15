@@ -12,7 +12,7 @@ The most important thing about this toml parser is that it maintains the structu
 ## Use
 ```toml
 [dependencies]
-toml-parse = "0.1"
+toml-parse = "0.2.7"
 ```
 
 ## Examples
