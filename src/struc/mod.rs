@@ -196,7 +196,6 @@ impl Into<Heading> for SyntaxNode {
 
 impl Into<InTable> for SyntaxNode {
     fn into(self) -> InTable {
-        println!("{:#?}", self);
         let pairs = self.children().map(|n| n.into()).collect();
         let trailing_comma = false;
         InTable {
@@ -399,7 +398,6 @@ impl Table {
 
             loop {
                 if let Some((left, right)) = zipped.next() {
-                    println!("{:?}, {:?}", left, right);
                     if let Some(comment) = &left.comment {
                         right.comment = Some(comment.into());
                     }
@@ -556,7 +554,6 @@ impl Toml {
 
             loop {
                 if let Some((left, right)) = zipped.next() {
-                    println!("{:?}, {:?}", left, right);
                     if let Value::Comment(comment) = left {
                         match right {
                             Value::Table(t) => {
@@ -605,7 +602,6 @@ alpha = "beta"
 "#;
         let mut toml = Toml::new(file);
         toml.combine_comments();
-        println!("{:#?}", toml);
     }
 
     #[test]
@@ -675,7 +671,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     fn docs() {
         let input = "examp = { first = 1, second = 2 }";
         let toml = Toml::new(input);
-        println!("{:#?}", toml);
+        // println!("{:#?}", toml);
         if let Some(Value::KeyValue(kv)) = toml.get_bare_value("examp") {
             let inline = kv.value().as_inline_table();
             assert_eq!(inline.unwrap().get("second"), Some(&Value::Int(2)));
@@ -697,7 +693,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
             deps.sort();
         }
         parsed.sort_matching("dependencies.");
-        println!("{:#?}", parsed);
+        // println!("{:#?}", parsed);
         assert_ne!(parsed, parse_cmp);
     }
 
@@ -712,7 +708,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
             deps.sort();
         }
         parsed.sort_matching("dependencies.");
-        println!("{:#?}", parsed);
+        // println!("{:#?}", parsed);
         assert_ne!(parsed, parse_cmp);
     }
     #[test]
@@ -727,7 +723,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
             deps.sort();
         }
         parsed.sort_matching("dependencies.");
-        println!("{:#?}", parsed);
+        // println!("{:#?}", parsed);
         assert_ne!(parsed, parse_cmp);
     }
 

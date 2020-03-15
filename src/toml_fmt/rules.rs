@@ -170,55 +170,33 @@ pub(crate) fn indent_after_comma(l_blk: &Block, r_blk: &Block) -> Option<WhiteSp
     {
         if let Some(ws) = arr_item.siblings_with_tokens(Direction::Prev).find(|el| {
             el.as_token().map(|t| {
+                // println!("TKN {:?}", t);
                 match t.text().as_bytes() {
                     // `\n\s...`
-                    [10, 32, ..] => {
-                        t.prev_sibling_or_token()
-                            .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
-                            .flatten()
-                            == Some(true)
-                    }
+                    [10, 32, ..] => true,
                     // `\n\t`
-                    [10, 9, ..] => {
-                        t.prev_sibling_or_token()
-                            .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
-                            .flatten()
-                            == Some(true)
-                    }
+                    [10, 9, ..] => true,
                     [] | [_] | [_, _, ..] => false,
                 }
             }) == Some(true)
         }) {
             let raw_ws = ws.as_token().unwrap().text();
             (true, raw_ws.contains("\t"), calc_indent(raw_ws))
-        } // else if let Some(ws) = arr_item.siblings_with_tokens(Direction::Next).find(|el| {
-        //     el.as_token().map(|t| {
-
-        //         println!("BLAHHHH");
-
-        //         match t.text().as_bytes() {
-        //             // `\n\s...`
-        //             [10, 32, ..] => {
-        //                 t.prev_sibling_or_token()
-        //                     .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
-        //                     .flatten()
-        //                     == Some(true)
-        //             }
-        //             // `\n\t`
-        //             [10, 9, ..] => {
-        //                 t.prev_sibling_or_token()
-        //                     .map(|t| t.as_token().map(|t| t.kind() == TomlKind::OpenBrace))
-        //                     .flatten()
-        //                     == Some(true)
-        //             }
-        //             [] | [_] | [_, _, ..] => false,
-        //         }
-        //     }) == Some(true)
-        // }) {
-        //     let raw_ws = ws.as_token().unwrap().text();
-        //     (true, raw_ws.contains("\t"), calc_indent(raw_ws))
-        //}
-        else {
+        } else if let Some(ws) = arr_item.siblings_with_tokens(Direction::Next).find(|el| {
+            // println!("EL NEXT {:#?}", el);
+            el.as_token().map(|t| {
+                match t.text().as_bytes() {
+                    // `\n\s...`
+                    [10, 32, ..] => true,
+                    // `\n\t`
+                    [10, 9, ..] => true,
+                    [] | [_] | [_, _, ..] => false,
+                }
+            }) == Some(true)
+        }) {
+            let raw_ws = ws.as_token().unwrap().text();
+            (true, raw_ws.contains("\t"), calc_indent(raw_ws))
+        } else {
             (false, false, (0, 0))
         }
     } else {
@@ -230,6 +208,14 @@ pub(crate) fn indent_after_comma(l_blk: &Block, r_blk: &Block) -> Option<WhiteSp
         .ancestors()
         .any(|n| n.kind() == TomlKind::ArrayItem)
     {
+        if r_blk.kind() == TomlKind::CloseBrace {
+            let eol = Space {
+                value: SpaceValue::Newline,
+                loc: SpaceLoc::Before,
+            };
+            return Some(WhiteSpace::from_rule(&eol, l_blk, r_blk));
+        }
+
         let indent = Space {
             value: SpaceValue::Indent { level, alignment, is_tab, },
             loc: SpaceLoc::Before,
@@ -240,14 +226,6 @@ pub(crate) fn indent_after_comma(l_blk: &Block, r_blk: &Block) -> Option<WhiteSp
         //     r_blk,
         //     r_blk.whitespace().space_before == indent
         // );
-        if r_blk.kind() == TomlKind::CloseBrace {
-            let eol = Space {
-                value: SpaceValue::Newline,
-                loc: SpaceLoc::Before,
-            };
-            return Some(WhiteSpace::from_rule(&eol, l_blk, r_blk));
-        }
-
         if l_blk.kind() == TomlKind::Comma
             && has_indent
             && r_blk.whitespace().space_before != indent
@@ -255,5 +233,62 @@ pub(crate) fn indent_after_comma(l_blk: &Block, r_blk: &Block) -> Option<WhiteSp
             return Some(WhiteSpace::from_rule(&indent, l_blk, r_blk));
         }
     }
+    None
+}
+
+#[allow(clippy::collapsible_if)]
+pub(crate) fn indent_after_open_brace(l_blk: &Block, r_blk: &Block) -> Option<WhiteSpace> {
+    let (has_indent, is_tab, (level, alignment)) = if let Some(arr_item) = l_blk
+        .token()
+        .next_sibling_or_token()
+        .and_then(|t| {
+            if t.kind() == TomlKind::ArrayItem {
+                t.as_node().cloned()
+            } else {
+                None
+            }
+        })
+    {
+        // println!("{:#?} {:#?}", l_blk, r_blk);
+        if let Some(ws) = arr_item.siblings_with_tokens(Direction::Next).find(|el| {
+                // println!("el {:#?}", el);
+                el.as_token().map(|t| {
+                    match t.text().as_bytes() {
+                        // `\n\s...`
+                        [10, 32, ..] => {
+                            // println!("prev token {:#?}", t.prev_sibling_or_token());
+                            t.prev_sibling_or_token()
+                                .map(|t| t.kind() == TomlKind::ArrayItem)
+                                == Some(true)
+                        }
+                        // `\n\t`
+                        [10, 9, ..] => {
+                            t.prev_sibling_or_token()
+                                .map(|t| t.kind() == TomlKind::ArrayItem)
+                                == Some(true)
+                        }
+                        [] | [_] | [_, _, ..] => false,
+                    }
+                }) == Some(true)
+            }) {
+                let raw_ws = ws.as_token().unwrap().text();
+                (true, raw_ws.contains("\t"), calc_indent(raw_ws))
+            } else {
+                (false, false, (0, 0))
+            }
+        } else {
+            (false, false, (0, 0))
+        };
+        // println!("{} {} {}", has_indent, level, alignment);
+        let indent = Space {
+            value: SpaceValue::Indent { level, alignment, is_tab, },
+            loc: SpaceLoc::Before,
+        };
+        if l_blk.kind() == TomlKind::OpenBrace
+            && has_indent
+            && r_blk.whitespace().space_before != indent
+        {
+            return Some(WhiteSpace::from_rule(&indent, l_blk, r_blk));
+        }
     None
 }

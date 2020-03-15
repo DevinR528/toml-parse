@@ -10,7 +10,7 @@ use block::Block;
 use rules::{
     indent_after_comma, lf_after_heading, lf_after_table, none_around_dot, space_around_eq,
     space_lf_after_array_open, space_lf_after_comma, space_lf_after_inline_table_open,
-    space_lf_before_array_close, space_lf_before_inline_table_close,
+    space_lf_before_array_close, space_lf_before_inline_table_close, indent_after_open_brace,
 };
 use ws::WhiteSpace;
 
@@ -116,6 +116,8 @@ pub fn formatter() -> Vec<(TomlKind, RuleFn)> {
             Box::new(space_lf_before_array_close) as RuleFn,
         ),
         // INDENT
+        // indent after open brace if siblings are indented
+        (TomlKind::OpenBrace, Box::new(indent_after_open_brace) as RuleFn),
         // indent after comma if siblings are indented
         (TomlKind::Comma, Box::new(indent_after_comma) as RuleFn),
     ]

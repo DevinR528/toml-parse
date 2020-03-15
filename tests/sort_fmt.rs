@@ -201,13 +201,11 @@ fn sort_fmt_work() {
     assert!(parsed.deep_eq(&parsed2));
 
     let sorted = sort_toml_items(&parsed, &MATCHER);
-    println!("{}", sorted.token_text());
+
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
     let fmted = Formatter::new(&sorted).format().to_string();
-
-    println!("{}", fmted);
 
     assert_ne!(input, fmted);
 
@@ -246,8 +244,6 @@ fn sort_fmt_right_seg_header() {
 
     let sorted = sort_toml_items(&parsed, &MATCHER);
 
-    print!("{}", sorted.token_text());
-
     assert!(parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
@@ -255,6 +251,29 @@ fn sort_fmt_right_seg_header() {
 
     assert_ne!(input, fmted);
 
+    let idempotent = parse_it(&fmted).expect("parse failed").syntax();
+    assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
+}
+
+#[test]
+fn sort_fmt_workspace() {
+    let input = read_to_string("examp/workspace.toml").expect("file read failed");
+    let fixed = read_to_string("examp/workspace.fix.toml").expect("file read failed");
+    let parsed = parse_it(&input).expect("parse failed").syntax();
+    let parsed2 = parse_it(&input).expect("parse failed").syntax();
+
+    assert!(parsed.deep_eq(&parsed2));
+
+    let sorted = sort_toml_items(&parsed, &MATCHER);
+
+    assert!(!parsed.deep_eq(&sorted));
+    assert_eq!(sorted.text_range(), parsed.text_range());
+
+    let fmted = Formatter::new(&sorted).format().to_string();
+
+    assert_ne!(input, fmted);
+
+    assert_eq!(fixed, fmted);
     let idempotent = parse_it(&fmted).expect("parse failed").syntax();
     assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
 }

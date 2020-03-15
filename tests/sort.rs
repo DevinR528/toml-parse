@@ -108,7 +108,7 @@ fn sort_tkns_right() {
     let input = read_to_string("examp/right.toml").expect("file read failed");
     let parsed = parse_it(&input).expect("parse failed").syntax();
     let parsed2 = parse_it(&input).expect("parse failed").syntax();
-    println!("{}", parsed.token_text());
+
     assert!(parsed.deep_eq(&parsed2));
 
     let sorted = sort_toml_items(&parsed, &HEADER);

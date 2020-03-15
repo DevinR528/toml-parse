@@ -12,7 +12,6 @@ pub enum TomlDate {
 
 impl TomlDate {
     pub(crate) fn from_str(input: &str) -> TomlResult<TomlDate> {
-        println!("{:?}", input);
         if input.contains(DATE_CHAR) && input.contains(TIME_CHAR) && input.contains('T') {
             let dt = input.split('T').collect::<Vec<_>>();
 
@@ -51,7 +50,6 @@ impl TomlDate {
                     let fractional = time[2].split('.').collect::<Vec<_>>();
                     (fractional[0].parse()?, fractional[1].parse()?)
                 };
-                println!("has fractional seconds {:?} {:?}", sec, milli);
                 NaiveTime::from_hms_milli(time[0].parse()?, time[1].parse()?, sec, milli)
             } else {
                 NaiveTime::from_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?)

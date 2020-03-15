@@ -59,7 +59,6 @@ fn fmt_indent_arr() {
     let input = read_to_string("examp/indent.toml").expect("file read failed");
     let fixed = read_to_string("examp/indent.fix.toml").expect("file read failed");
     let parsed = parse_it(&input).expect("parse failed").syntax();
-
     let fmted = Formatter::new(&parsed).format();
 
     assert_eq!(fmted.to_string(), fixed);
