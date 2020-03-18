@@ -1,10 +1,9 @@
 # P.O.T.
-## Parser of Toml powerd by  [Muncher](https://github.com/DevinR528/muncher)
+## Parser of Toml powered by [Muncher](https://github.com/DevinR528/muncher)
 
 [![Build Status](https://travis-ci.com/DevinR528/toml-parse.svg?branch=master)](https://travis-ci.com/DevinR528/toml-parse)
+[![Released API docs](https://docs.rs/toml-parse/badge.svg)](https://docs.rs/toml-parse)
 [![Latest Version](https://img.shields.io/crates/v/toml-parse.svg)](https://crates.io/crates/toml-parse)
-
-[Documentation](https://docs.rs/toml-parse)
 
 ## About
 The most important thing about this toml parser is that it maintains the structure of the original parsed file (whitespace, comments, ect.). For toml formatting tools like [cargo sort check](https://github.com/DevinR528/cargo-sort-ck) this feature is essential, this is the only reason something like [toml-rs](https://github.com/alexcrichton/toml-rs/tree/0.4.6) cannot be used unfortunatly :(. 
