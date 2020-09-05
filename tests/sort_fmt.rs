@@ -50,9 +50,6 @@ fn sort_fmt_seg_sort() {
     assert!(!parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 
-    print!("{}", Formatter::new(&sorted).format().to_string());
-    print!("{}", sorted.token_text());
-
     assert_ne!(input, Formatter::new(&sorted).format().to_string())
 }
 
@@ -116,12 +113,9 @@ fn sort_fmt_ftop() {
     let parsed = parse_it(&input).expect("parse failed").syntax();
     let parsed2 = parse_it(&input).expect("parse failed").syntax();
 
-    print!("{:#?}", parsed);
-
     assert!(parsed.deep_eq(&parsed2));
 
     let sorted = sort_toml_items(&parsed, &MATCHER);
-    print!("{}", sorted.token_text());
 
     // assert!(!parsed.deep_eq(&sorted));
     // assert_eq!(sorted.text_range(), parsed.text_range());
