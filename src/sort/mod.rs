@@ -138,6 +138,7 @@ fn add_sorted_table(node: &SyntaxNode, builder: &mut GreenNodeBuilder) {
         unreachable!("table without heading")
     }
 
+    // skip the table heading we just added
     let kv = node.children_with_tokens().skip(1).collect::<Vec<_>>();
     for ele in sort_key_value(&kv) {
         add_element(ele, builder);
@@ -164,7 +165,7 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
         .collect::<Vec<_>>();
 
     let mut keys = Vec::default();
-    let mut start = 0;
+    let mut start = 0_usize;
     for (idx, key) in pos {
         let next_is_whitespace = kv
             .get(idx + 1)
@@ -172,17 +173,31 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
             == Some(true);
 
         let idx = if next_is_whitespace { idx + 1 } else { idx };
+
+        let idx = kv
+            .iter()
+            .skip(start)
+            .enumerate()
+            .take_while(|(count, n)| {
+                n.as_node().map(|n| n.kind()) != Some(TomlKind::KeyValue) || *count == 0
+            })
+            .map(|(idx, _)| idx)
+            .sum::<usize>()
+            + idx;
+
+        dbg!(&kv[start..=idx]);
+
         keys.push((key, &kv[start..=idx]));
         start = idx + 1;
     }
+
+    // if we did not reach the end of the table add the last whitespace/comments
     if start != kv.len() {
         keys.push((None, &kv[start..]))
     }
+
     keys.sort_by(|chunk, other| {
-        if chunk.0.is_none() {
-            return Ordering::Equal;
-        }
-        if other.0.is_none() {
+        if chunk.0.is_none() || other.0.is_none() {
             return Ordering::Equal;
         }
         chunk.0.cmp(&other.0)
