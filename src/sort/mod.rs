@@ -185,8 +185,6 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
             .sum::<usize>()
             + idx;
 
-        dbg!(&kv[start..=idx]);
-
         keys.push((key, &kv[start..=idx]));
         start = idx + 1;
     }

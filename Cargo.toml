@@ -1,6 +1,6 @@
 [package]
 name = "toml-parse"
-version = "0.2.7"
+version = "0.2.8"
 authors = ["Devin R <devin.ragotzy@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "Set of modules for parsing, sorting and formating toml."
@@ -12,5 +12,5 @@ readme = "README.md"
 
 [dependencies]
 chrono = "0.4"
-rowan = "0.9"
-muncher = "0.5"
+rowan = "0.10.0"
+muncher = "0.6.1"
