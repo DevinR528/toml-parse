@@ -31,7 +31,11 @@ pub(crate) enum SpaceValue {
     /// Number of new lines this is only for `Whitespace` held by `Block`.
     MultiLF(u32),
     /// Number of spaces that indent is made of `'\n\s\s\s\s'`.
-    Indent { level: u32, alignment: u32, is_tab: bool },
+    Indent {
+        level: u32,
+        alignment: u32,
+        is_tab: bool,
+    },
 }
 
 #[allow(dead_code)]
@@ -93,16 +97,20 @@ impl fmt::Display for Space {
         match self.value {
             SpaceValue::Single => write!(f, " "),
             SpaceValue::Newline => writeln!(f),
-            SpaceValue::Indent { level, alignment, is_tab: false } => write!(
+            SpaceValue::Indent {
+                level,
+                alignment,
+                is_tab: false,
+            } => write!(
                 f,
                 "\n{}",
                 " ".repeat((level * USER_INDENT_SIZE + alignment) as usize)
             ),
-            SpaceValue::Indent { level, is_tab: true, .. } => write!(
-                f,
-                "\n{}",
-                "\t".repeat(level as usize)
-            ),
+            SpaceValue::Indent {
+                level,
+                is_tab: true,
+                ..
+            } => write!(f, "\n{}", "\t".repeat(level as usize)),
             SpaceValue::MultiLF(count) => write!(f, "{}", "\n".repeat(count as usize)),
             SpaceValue::MultiSpace(count) => write!(f, "{}", " ".repeat(count as usize)),
             SpaceValue::None => write!(f, ""),
@@ -184,31 +192,14 @@ impl WhiteSpace {
             return true;
         }
         match space.value {
-            Single => match self.space_before.value {
-                Single => true,
-                _ => false,
-            },
-            SingleOrNewline => match self.space_before.value {
-                Single | Newline | Indent { .. } => true,
-                _ => false,
-            },
-            SingleOptionalNewline => match self.space_before.value {
-                Single | Newline | Indent { .. } => true,
-                _ => false,
-            },
+            Single => matches!(self.space_before.value, Single),
+            SingleOrNewline | SingleOptionalNewline => {
+                matches!(self.space_before.value, Single | Newline | Indent { .. })
+            }
             // TODO make sure valid
-            Newline => match self.space_before.value {
-                Newline | Indent { .. } => true,
-                _ => false,
-            },
-            NoneOrNewline => match self.space_before.value {
-                Newline | Indent { .. } => true,
-                _ => false,
-            },
-            NoneOptionalNewline => match self.space_before.value {
-                Newline | Indent { .. } => true,
-                _ => false,
-            },
+            Newline | NoneOrNewline | NoneOptionalNewline => {
+                matches!(self.space_before.value, Newline | Indent { .. })
+            }
             // TODO from here on the rules never set these they will
             // never be checked.
             MultiSpace(len) => match self.space_before.value {
@@ -237,9 +228,9 @@ fn is_ws(token: &SyntaxToken) -> bool {
 
 pub(crate) fn calc_indent(ws: &str) -> (u32, u32) {
     let len = if ws.contains("\n ") {
-        ws.matches(" ").count() as u32
-    } else if ws.contains("\t") {
-        ws.matches("\t").count() as u32 * USER_INDENT_SIZE
+        ws.matches(' ').count() as u32
+    } else if ws.contains('\t') {
+        ws.matches('\t').count() as u32 * USER_INDENT_SIZE
     } else {
         0
     };
@@ -254,7 +245,11 @@ fn calc_space_value(tkn: &SyntaxToken) -> SpaceValue {
     // indent is `\n\s\s\s\s` or some variation
     if orig.contains('\n') && (orig.contains(' ') || orig.contains('\t')) {
         let (level, alignment) = calc_indent(orig);
-        SpaceValue::Indent { level, alignment, is_tab: orig.contains('\t') }
+        SpaceValue::Indent {
+            level,
+            alignment,
+            is_tab: orig.contains('\t'),
+        }
     // just new line
     } else if orig.contains('\n') {
         if tkn_len == 1 {
@@ -296,7 +291,15 @@ fn process_space_value(blk: &Block, space: &Space) -> SpaceValue {
                 Single
             }
         }
-        Indent { level, alignment, is_tab } => Indent { level, alignment, is_tab },
+        Indent {
+            level,
+            alignment,
+            is_tab,
+        } => Indent {
+            level,
+            alignment,
+            is_tab,
+        },
         None => space.value,
     }
 }
