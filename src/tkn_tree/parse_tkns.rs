@@ -23,10 +23,8 @@ impl Into<(TomlKind, SmolStr)> for Element {
 }
 
 fn is_valid_key(s: &str) -> bool {
-    s.chars().all(|c| match c {
-        'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' | '-' | '\'' | '"' => true,
-        _ => false,
-    })
+    s.chars()
+        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' | '-' | '\'' | '"'))
 }
 
 fn is_valid_datetime(s: &str) -> TomlResult<bool> {
@@ -616,7 +614,7 @@ impl TomlNode {
             parser.builder.token(kind.into(), text)
         }
 
-        while let Some(_) = TomlNode::array_item(muncher, parser)? { /* loop to array end */ }
+        while TomlNode::array_item(muncher, parser)?.is_some() { /* loop to array end */ }
 
         TomlToken::close_brace(muncher, parser)?;
         parser.builder.finish_node();
