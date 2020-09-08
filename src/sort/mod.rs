@@ -172,7 +172,7 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
             .skip(start)
             .enumerate()
             .take_while(|(count, n)| {
-                // We group everything between key -> value pairs to hopefully maintain
+                // We group everything between key -> value pairs to *hopefully* maintain
                 // comments
                 n.as_node().map(|n| n.kind()) != Some(TomlKind::KeyValue) || *count == 0
             })
@@ -182,7 +182,7 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
 
         // At the end of a table the `start` may be greater than `idx`
         // this defers to the `if` block that adds the rest of the vec to `keys`
-        if start > idx {
+        if start > idx || idx > kv.len() {
             break;
         }
 
