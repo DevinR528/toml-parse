@@ -294,3 +294,26 @@ fn sort_fmt_comments() {
     let idempotent = parse_it(&fmted).expect("parse failed").syntax();
     assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
 }
+
+#[test]
+fn sort_fmt_issue9() {
+    let input = read_to_string("examp/issue9.toml").expect("file read failed");
+    // let fixed = read_to_string("examp/comments.fix.toml").expect("file read failed");
+    let parsed = parse_it(&input).expect("parse failed").syntax();
+    // let parsed2 = parse_it(&input).expect("parse failed").syntax();
+
+    // assert!(parsed.deep_eq(&parsed2));
+
+    let sorted = sort_toml_items(&parsed, &MATCHER);
+
+    // assert!(!parsed.deep_eq(&sorted));
+    // assert_eq!(sorted.text_range(), parsed.text_range());
+
+    let fmted = Formatter::new(&sorted).format().to_string();
+
+    // assert_ne!(input, fmted);
+
+    // assert_eq!(fixed, fmted);
+    let idempotent = parse_it(&fmted).expect("parse failed").syntax();
+    assert_eq!(fmted, Formatter::new(&idempotent).format().to_string())
+}

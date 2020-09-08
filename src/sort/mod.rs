@@ -166,31 +166,32 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
 
     let mut keys = Vec::default();
     let mut start = 0_usize;
-    for (idx, key) in pos {
-        let next_is_whitespace = kv
-            .get(idx + 1)
-            .map(|el| el.as_token().map(|t| t.kind()) == Some(TomlKind::Whitespace))
-            == Some(true);
-
-        let idx = if next_is_whitespace { idx + 1 } else { idx };
-
+    for (found_idx, key) in pos {
         let idx = kv
             .iter()
             .skip(start)
             .enumerate()
             .take_while(|(count, n)| {
+                // We group everything between key -> value pairs to hopefully maintain
+                // comments
                 n.as_node().map(|n| n.kind()) != Some(TomlKind::KeyValue) || *count == 0
             })
             .map(|(idx, _)| idx)
             .sum::<usize>()
-            + idx;
+            + found_idx;
+
+        // At the end of a table the `start` may be greater than `idx`
+        // this defers to the `if` block that adds the rest of the vec to `keys`
+        if start > idx {
+            break;
+        }
 
         keys.push((key, &kv[start..=idx]));
         start = idx + 1;
     }
 
     // if we did not reach the end of the table add the last whitespace/comments
-    if start != kv.len() {
+    if start < kv.len() {
         keys.push((None, &kv[start..]))
     }
 
