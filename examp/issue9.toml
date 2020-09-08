@@ -1,0 +1,40 @@
+[package]
+name = "api"
+version = "0.1.0"
+authors = ["someone"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Web server
+actix-web = "3.0.0-beta.3"
+# Error handling
+anyhow = "1"
+# Rust implementation of dataloader (https://github.com/graphql/dataloader)
+dataloader = { version = "0.12", default-features = false, features = ["runtime-tokio"] }
+# Rust really doesn't have logging in std
+log = "0.4"
+# But at least we can have pretty logging
+pretty_env_logger = "0.4"
+# Graphql server, currently undergoing major development
+# so a lot of features are only available on master
+juniper = { git = "https://github.com/graphql-rust/juniper" }
+# Date and time library
+chrono = "0.4"
+# Connection pooling for databases
+r2d2 = "0.8"
+# Redis, including cluster and pooling support
+redis = { version = "0.17", features = ["r2d2", "cluster"] }
+# Cryptographic hashing library for passwords
+sodiumoxide = "0.2"
+# SQL but like...in rust. Originally I was using the Diesel ORM but
+# honestly I kind of hate ORMs.
+# Tokio runtime, macro support, etc.
+sqlx = { version = "0.4.0-beta.1", default-features = false, features = [ "runtime-tokio", "macros", "postgres", "chrono", "ipnetwork", "tls" ] }
+# URL parsing and handling
+url = "2.1"
+
+[dev-dependencies]
+# I suspect eventually I'll use this
+dotenv = "0.15"
