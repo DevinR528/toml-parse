@@ -12,4 +12,4 @@ pub use tkn_tree::{
     ParsedToml, Parser, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken, Tokenizer,
     TomlKind,
 };
-pub use toml_fmt::Formatter;
+pub use toml_fmt::{Formatter, RuleConfig};

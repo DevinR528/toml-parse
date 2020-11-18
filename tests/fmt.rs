@@ -1,6 +1,6 @@
 use std::fs::read_to_string;
 
-use toml_parse::{parse_it, Formatter};
+use toml_parse::{parse_it, Formatter, RuleConfig};
 
 #[test]
 fn fmt_eq_space() {
@@ -30,6 +30,45 @@ fn fmt_comma_arr() {
     let fmt = Formatter::new(&parsed).format();
     assert_eq!(fmt.to_string(), "key = [ 1, 2, 3 ]\n")
 }
+
+#[test]
+fn fmt_array_no_space() {
+    let file = "key = [1,2,3]";
+    let parsed = parse_it(file).expect("parse failed").syntax();
+    let fmt = Formatter::new_with_config(
+        &parsed,
+        RuleConfig {
+            space_before_after_array_brace: false,
+            space_before_after_curly_brace: true,
+        },
+    )
+    .format();
+    assert_eq!(fmt.to_string(), "key = [1, 2, 3]\n");
+
+    // still works the same
+    let file = "key={a=1,b=2}";
+    let parsed = parse_it(file).expect("parse failed").syntax();
+    let fmt = Formatter::new_with_config(
+        &parsed,
+        RuleConfig {
+            space_before_after_array_brace: false,
+            space_before_after_curly_brace: true,
+        },
+    )
+    .format();
+    assert_eq!(fmt.to_string(), "key = { a = 1, b = 2 }\n");
+
+    let fmt = Formatter::new_with_config(
+        &parsed,
+        RuleConfig {
+            space_before_after_array_brace: false,
+            space_before_after_curly_brace: false,
+        },
+    )
+    .format();
+    assert_eq!(fmt.to_string(), "key = {a = 1, b = 2}\n")
+}
+
 #[test]
 fn fmt_comma_obj() {
     let file = "key={a=1,b=2}";
