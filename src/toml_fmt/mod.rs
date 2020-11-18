@@ -17,6 +17,11 @@ use ws::WhiteSpace;
 
 type RuleFn = Box<dyn for<'a> Fn(&'a Block, &'a Block) -> Option<WhiteSpace>>;
 
+pub struct RuleConfig {
+    pub space_before_after_array_brace: bool,
+    pub space_before_after_curly_brace: bool,
+}
+
 /// Formatter impl's `Display` so once `format()` has been called, the resulting
 /// text can be retrieved.
 pub struct Formatter {
@@ -30,10 +35,22 @@ impl Formatter {
     pub fn new(root: &SyntaxNode) -> Formatter {
         Self {
             blocks: walk_tokens_non_ws(root).map(Block::new).collect(),
-            rules: formatter(),
+            rules: formatter(None),
             formatted: String::default(),
         }
     }
+
+    /// Creates new instance of `Formatter`.
+    ///
+    /// The `config` will be used to set what rules are turned on/off.
+    pub fn new_with_config(root: &SyntaxNode, config: RuleConfig) -> Formatter {
+        Self {
+            blocks: walk_tokens_non_ws(root).map(Block::new).collect(),
+            rules: formatter(Some(config)),
+            formatted: String::default(),
+        }
+    }
+
     /// `format` the tree of `rowan::SyntaxElements` according to valid toml.
     pub fn format(mut self) -> Self {
         let zipped = self.blocks.iter().zip(self.blocks.iter().skip(1));
@@ -65,6 +82,7 @@ impl Formatter {
         self
     }
 }
+
 impl fmt::Debug for Formatter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Formatter")
@@ -84,8 +102,8 @@ impl fmt::Display for Formatter {
     }
 }
 
-pub fn formatter() -> Vec<(TomlKind, RuleFn)> {
-    vec![
+fn formatter(config: Option<RuleConfig>) -> Vec<(TomlKind, RuleFn)> {
+    let mut rules = vec![
         // WHITESPACE
         // empty line between tables
         (TomlKind::OpenBrace, Box::new(lf_after_table) as RuleFn),
@@ -97,26 +115,6 @@ pub fn formatter() -> Vec<(TomlKind, RuleFn)> {
         (TomlKind::Equal, Box::new(space_around_eq) as RuleFn),
         // space or newline after comma in array or inline table
         (TomlKind::Comma, Box::new(space_lf_after_comma) as RuleFn),
-        // space or newline after array open brace
-        (
-            TomlKind::OpenCurly,
-            Box::new(space_lf_after_inline_table_open) as RuleFn,
-        ),
-        // space or newline before closing curly brace of inline table
-        (
-            TomlKind::CloseCurly,
-            Box::new(space_lf_before_inline_table_close) as RuleFn,
-        ),
-        // space or newline after open brace of array
-        (
-            TomlKind::OpenBrace,
-            Box::new(space_lf_after_array_open) as RuleFn,
-        ),
-        // space or newline before closing brace of array
-        (
-            TomlKind::CloseBrace,
-            Box::new(space_lf_before_array_close) as RuleFn,
-        ),
         // INDENT
         // indent after open brace if siblings are indented
         (
@@ -125,5 +123,69 @@ pub fn formatter() -> Vec<(TomlKind, RuleFn)> {
         ),
         // indent after comma if siblings are indented
         (TomlKind::Comma, Box::new(indent_after_comma) as RuleFn),
-    ]
+    ];
+    match config {
+        None => {
+            rules.extend(vec![
+                // space or newline after open brace of array
+                (
+                    TomlKind::OpenBrace,
+                    Box::new(space_lf_after_array_open) as RuleFn,
+                ),
+                // space or newline before closing brace of array
+                (
+                    TomlKind::CloseBrace,
+                    Box::new(space_lf_before_array_close) as RuleFn,
+                ),
+                // space or newline after open curly brace of inline table
+                (
+                    TomlKind::OpenCurly,
+                    Box::new(space_lf_after_inline_table_open) as RuleFn,
+                ),
+                // space or newline before closing curly brace of inline table
+                (
+                    TomlKind::CloseCurly,
+                    Box::new(space_lf_before_inline_table_close) as RuleFn,
+                ),
+            ]);
+        }
+        Some(RuleConfig {
+            space_before_after_array_brace: true,
+            ..
+        }) => {
+            rules.extend(vec![
+                // space or newline after open brace of array
+                (
+                    TomlKind::OpenBrace,
+                    Box::new(space_lf_after_array_open) as RuleFn,
+                ),
+                // space or newline before closing brace of array
+                (
+                    TomlKind::CloseBrace,
+                    Box::new(space_lf_before_array_close) as RuleFn,
+                ),
+            ]);
+        }
+        Some(RuleConfig {
+            space_before_after_curly_brace: true,
+            ..
+        }) => {
+            rules.extend(vec![
+                // space or newline after open curly brace of inline table
+                (
+                    TomlKind::OpenCurly,
+                    Box::new(space_lf_after_inline_table_open) as RuleFn,
+                ),
+                // space or newline before closing curly brace of inline table
+                (
+                    TomlKind::CloseCurly,
+                    Box::new(space_lf_before_inline_table_close) as RuleFn,
+                ),
+            ])
+        }
+        // Config ignores both arrays and inline object spaces/newlines
+        _ => {}
+    }
+
+    rules
 }
