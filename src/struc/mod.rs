@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 pub(self) use super::common::{self, err};
 pub(self) use super::tkn_tree;
 
+use err::TomlResult;
 use tkn_tree::{parse_it, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken, TomlKind};
 
 mod date;
@@ -32,11 +33,23 @@ pub struct InTable {
     trailing_comma: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KvPair {
     comment: Option<String>,
     key: Option<String>,
     val: Value,
+}
+
+impl PartialOrd for KvPair {
+    fn partial_cmp(&self, other: &KvPair) -> Option<Ordering> {
+        match self.key() {
+            Some(key) => match other.key() {
+                Some(k) => key.partial_cmp(k),
+                None => Some(Ordering::Equal),
+            },
+            None => Some(Ordering::Equal),
+        }
+    }
 }
 
 impl Ord for KvPair {
@@ -167,10 +180,10 @@ impl Value {
     }
 }
 
-impl Into<Table> for SyntaxNode {
-    fn into(self) -> Table {
-        let header = self.first_child().map(|n| n.into()).unwrap();
-        let pairs = self.children().skip(1).map(|n| n.into()).collect();
+impl From<SyntaxNode> for Table {
+    fn from(node: SyntaxNode) -> Self {
+        let header = node.first_child().map(|n| n.into()).unwrap();
+        let pairs = node.children().skip(1).map(|n| n.into()).collect();
         Table {
             header,
             pairs,
@@ -179,9 +192,9 @@ impl Into<Table> for SyntaxNode {
     }
 }
 
-impl Into<Heading> for SyntaxNode {
-    fn into(self) -> Heading {
-        let mut header = self.token_text();
+impl From<SyntaxNode> for Heading {
+    fn from(node: SyntaxNode) -> Self {
+        let mut header = node.token_text();
         if header.contains('[') {
             header = header.split('[').collect::<Vec<_>>()[1].to_string();
         }
@@ -194,9 +207,9 @@ impl Into<Heading> for SyntaxNode {
     }
 }
 
-impl Into<InTable> for SyntaxNode {
-    fn into(self) -> InTable {
-        let pairs = self.children().map(|n| n.into()).collect();
+impl From<SyntaxNode> for InTable {
+    fn from(node: SyntaxNode) -> InTable {
+        let pairs = node.children().map(|n| n.into()).collect();
         let trailing_comma = false;
         InTable {
             pairs,
@@ -205,19 +218,19 @@ impl Into<InTable> for SyntaxNode {
     }
 }
 
-impl Into<KvPair> for SyntaxNode {
-    fn into(self) -> KvPair {
-        if self.kind() == TomlKind::Comment {
+impl From<SyntaxNode> for KvPair {
+    fn from(node: SyntaxNode) -> KvPair {
+        if node.kind() == TomlKind::Comment {
             return KvPair {
                 key: None,
                 val: Value::None,
-                comment: Some(self.token_text()),
+                comment: Some(node.token_text()),
             };
         }
 
-        let key = self.first_child().map(|n| n.token_text());
+        let key = node.first_child().map(|n| n.token_text());
 
-        let val = self
+        let val = node
             .children()
             .find(|n| n.kind() == TomlKind::Value || n.kind() == TomlKind::Comment)
             .filter(ws)
@@ -232,31 +245,31 @@ impl Into<KvPair> for SyntaxNode {
     }
 }
 
-impl Into<Value> for SyntaxNode {
-    fn into(self) -> Value {
+impl From<SyntaxNode> for Value {
+    fn from(node: SyntaxNode) -> Self {
         // println!("INTO {:#?}", self);
-        match self.kind() {
+        match node.kind() {
             TomlKind::Root => Value::Root,
-            TomlKind::Table => Value::Table(self.into()),
-            TomlKind::KeyValue => Value::KeyValue(Box::new(self.into())),
-            TomlKind::InlineTable => Value::InlineTable(self.into()),
-            TomlKind::Array => Value::node_to_array(self),
-            TomlKind::ArrayItem => Value::node_to_array_item(self),
-            TomlKind::Value => Value::node_to_value(self),
-            TomlKind::Date => Value::node_to_date(self),
-            TomlKind::Comment => Value::node_to_comment(self),
-            TomlKind::Str => Value::node_to_string(self),
-            TomlKind::Float => Value::node_to_float(self),
+            TomlKind::Table => Value::Table(node.into()),
+            TomlKind::KeyValue => Value::KeyValue(Box::new(node.into())),
+            TomlKind::InlineTable => Value::InlineTable(node.into()),
+            TomlKind::Array => Value::node_to_array(node),
+            TomlKind::ArrayItem => Value::node_to_array_item(node),
+            TomlKind::Value => Value::node_to_value(node),
+            TomlKind::Date => Value::node_to_date(node),
+            TomlKind::Comment => Value::node_to_comment(node),
+            TomlKind::Str => Value::node_to_string(node),
+            TomlKind::Float => Value::node_to_float(node),
             _ => unreachable!("may need to add nodes"),
         }
     }
 }
 
-impl Into<Value> for SyntaxToken {
-    fn into(self) -> Value {
-        match self.kind() {
-            TomlKind::Integer => Value::token_to_int(self),
-            TomlKind::Bool => Value::token_to_bool(self),
+impl From<SyntaxToken> for Value {
+    fn from(node: SyntaxToken) -> Self {
+        match node.kind() {
+            TomlKind::Integer => Value::token_to_int(node),
+            TomlKind::Bool => Value::token_to_bool(node),
             _ => unreachable!("may need to add nodes"),
         }
     }
@@ -264,11 +277,11 @@ impl Into<Value> for SyntaxToken {
 
 impl Toml {
     /// Create structured toml objects from valid toml `&str`
-    pub fn new(input: &str) -> Toml {
-        let root = parse_it(input).expect("parse failed").syntax();
-        Self {
+    pub fn new(input: &str) -> TomlResult<Self> {
+        let root = parse_it(input)?.syntax();
+        Ok(Self {
             items: root.children().map(|node| node.into()).collect(),
-        }
+        })
     }
 }
 
@@ -302,10 +315,7 @@ impl Value {
 
     pub fn sort_string_array(&mut self) {
         if let Value::Array(array) = self {
-            let all_str = array.iter().all(|item| match item {
-                Value::StrLit(_) => true,
-                _ => false,
-            });
+            let all_str = array.iter().all(|item| matches!(item, Value::StrLit(_)));
 
             if !all_str {
                 return;
@@ -434,7 +444,7 @@ impl InTable {
     /// use toml_parse::{Toml, Value};
     ///
     /// let input = "examp = { first = 1, second = 2 }";
-    /// let toml = Toml::new(input);
+    /// let toml = Toml::new(input).unwrap();
     ///
     /// if let Some(Value::InlineTable(inline)) = toml.get_bare_value("examp") {
     ///     assert_eq!(inline.get("second"), Some(&Value::Int(2)));
@@ -570,13 +580,7 @@ impl Toml {
                 }
             }
         }
-        self.items.retain(|val| {
-            if let Value::Comment(_) = val {
-                false
-            } else {
-                true
-            }
-        })
+        self.items.retain(|val| !matches!(val, Value::Comment(_)))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Value> {
@@ -600,7 +604,7 @@ number = 1234
 # comment
 alpha = "beta"
 "#;
-        let mut toml = Toml::new(file);
+        let mut toml = Toml::new(file).unwrap();
         toml.combine_comments();
     }
 
@@ -612,21 +616,21 @@ number = 1234
 array = [ true, false, true ]
 inline-table = { date = 1988-02-03T10:32:10, }
 "#;
-        let toml = Toml::new(file);
+        let toml = Toml::new(file).unwrap();
         assert!(toml.get_table("deps").is_some());
     }
 
     #[test]
     fn ftop_file_struc() {
         let input = read_to_string("examp/ftop.toml").expect("file read failed");
-        let parsed = Toml::new(&input);
+        let parsed = Toml::new(&input).unwrap();
 
-        assert_eq!(parsed.len(), 5);
+        assert_eq!(parsed.len(), 6);
     }
     #[test]
     fn fend_file_struc() {
         let input = read_to_string("examp/fend.toml").expect("file read failed");
-        let parsed = Toml::new(&input);
+        let parsed = Toml::new(&input).unwrap();
 
         assert_eq!(parsed.len(), 6);
         // println!("{:#?}", parsed.len());
@@ -634,7 +638,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     #[test]
     fn seg_file_struc() {
         let input = read_to_string("examp/seg.toml").expect("file read failed");
-        let parsed = Toml::new(&input);
+        let parsed = Toml::new(&input).unwrap();
 
         assert_eq!(parsed.len(), 2);
         // println!("{:#?}", parsed.len());
@@ -642,7 +646,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     #[test]
     fn work_file_struc() {
         let input = read_to_string("examp/work.toml").expect("file read failed");
-        let parsed = Toml::new(&input);
+        let parsed = Toml::new(&input).unwrap();
         let members = parsed
             .get_table("workspace")
             .unwrap()
@@ -660,7 +664,7 @@ number = 1234
 array = [ true, false, true ]
 inline-table = { date = 1988-02-03T10:32:10, }
 "#;
-        let parsed = Toml::new(file);
+        let parsed = Toml::new(file).unwrap();
         assert_eq!(parsed.len(), 1);
         let tab = parsed.get_table("deps").unwrap();
         assert_eq!(tab.header(), "deps");
@@ -670,7 +674,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     #[test]
     fn docs() {
         let input = "examp = { first = 1, second = 2 }";
-        let toml = Toml::new(input);
+        let toml = Toml::new(input).unwrap();
         // println!("{:#?}", toml);
         if let Some(Value::KeyValue(kv)) = toml.get_bare_value("examp") {
             let inline = kv.value().as_inline_table();
@@ -684,7 +688,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     #[test]
     fn merge_comments_ftop() {
         let input = read_to_string("examp/ftop.toml").expect("file read failed");
-        let mut parsed = Toml::new(&input);
+        let mut parsed = Toml::new(&input).unwrap();
         parsed.combine_comments();
         let parse_cmp = parsed.clone();
         assert_eq!(parsed, parse_cmp);
@@ -700,7 +704,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     #[test]
     fn sort_ftop() {
         let input = read_to_string("examp/ftop.toml").expect("file read failed");
-        let mut parsed = Toml::new(&input);
+        let mut parsed = Toml::new(&input).unwrap();
         let parse_cmp = parsed.clone();
         assert_eq!(parsed, parse_cmp);
         {
@@ -714,7 +718,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     #[test]
     fn sort_fend() {
         let input = read_to_string("examp/fend.toml").expect("file read failed");
-        let mut parsed = Toml::new(&input);
+        let mut parsed = Toml::new(&input).unwrap();
 
         let parse_cmp = parsed.clone();
         assert_eq!(parsed, parse_cmp);
@@ -730,7 +734,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     #[test]
     fn sort_win() {
         let input = read_to_string("examp/win.toml").expect("file read failed");
-        let mut parsed = Toml::new(&input);
+        let mut parsed = Toml::new(&input).unwrap();
         let parse_cmp = parsed.clone();
         assert_eq!(parsed, parse_cmp);
         {
@@ -746,7 +750,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     #[test]
     fn sort_work() {
         let input = read_to_string("examp/work.toml").expect("file read failed");
-        let mut parsed = Toml::new(&input);
+        let mut parsed = Toml::new(&input).unwrap();
         let members = parsed
             .get_table_mut("workspace")
             .unwrap()
