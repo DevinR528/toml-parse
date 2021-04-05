@@ -95,7 +95,7 @@ pub enum TomlKind {
     // these are nodes
     //
     Table,
-    /// A table heading surounded by brackets.
+    /// A table heading surrounded by brackets.
     Heading,
     /// An array of tables heading
     ArrayHeading,
@@ -112,14 +112,12 @@ pub enum TomlKind {
     Value,
     /// A toml array.
     Array,
-    ///
+    /// An item within a toml array.
     ArrayItem,
     /// Toml date
     /// TODO this is one of with offset, without, local,
     /// time, date and datetime.
     Date,
-    /// A toml table consisting of a heading and key
-    /// value pairs.
     /// An signed 64 bit EEE 754-2008 "binary64" number.
     Float,
     /// One of three string types, literal single quote,

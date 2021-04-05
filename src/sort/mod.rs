@@ -9,6 +9,8 @@ use rowan::{GreenNode, GreenNodeBuilder};
 
 use super::tkn_tree::{SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, TomlKind};
 
+mod sort_rep;
+
 /// Each `Matcher` field when matched to a heading or key token
 /// will be matched with `.contains()`.
 pub struct Matcher<'a> {
@@ -186,6 +188,8 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
             break;
         }
 
+        println!("{} {} {}", start, kv.len(), idx);
+
         keys.push((key, &kv[start..=idx]));
         start = idx + 1;
     }
@@ -318,10 +322,7 @@ fn sort_items(node: SyntaxNode) -> Vec<(bool, SyntaxElement)> {
         sorted.push((None, &children[current..]))
     }
     sorted.sort_by(|chunk, other| {
-        if chunk.0.is_none() {
-            return Ordering::Equal;
-        }
-        if other.0.is_none() {
+        if chunk.0.is_none() || other.0.is_none() {
             return Ordering::Equal;
         }
         chunk.0.cmp(&other.0)

@@ -8,5 +8,6 @@ pub mod walk;
 pub use kinds::{TomlKind, TomlNode, TomlToken};
 pub use parse_tkns::Tokenizer;
 pub use syntax::{
-    parse_it, ParsedToml, Parser, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken,
+    parse_it, AstNode, AstToken, ParsedToml, Parser, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait,
+    SyntaxToken, TomlLang,
 };

@@ -173,3 +173,30 @@ fn sort_clippy() {
     // assert!(parsed.deep_eq(&sorted));
     assert_eq!(sorted.text_range(), parsed.text_range());
 }
+
+#[test]
+fn sort_tkns_ruma() {
+    const HEADERS: [&str; 3] = [
+        "[dependencies]",
+        "[dev-dependencies]",
+        "[build-dependencies]",
+    ];
+
+    const HEADER_SEG: [&str; 3] = ["dependencies.", "dev-dependencies.", "build-dependencies."];
+
+    const MATCHER: Matcher<'_> = Matcher {
+        heading: &HEADERS,
+        segmented: &HEADER_SEG,
+        heading_key: &[("[workspace]", "members"), ("[workspace]", "exclude")],
+    };
+    let input = read_to_string("examp/ruma.toml").expect("file read failed");
+    let parsed = parse_it(&input).expect("parse failed").syntax();
+    let parsed2 = parse_it(&input).expect("parse failed").syntax();
+
+    assert!(parsed.deep_eq(&parsed2));
+
+    let sorted = sort_toml_items(&parsed, &MATCHER);
+
+    assert!(!parsed.deep_eq(&sorted));
+    assert_eq!(sorted.text_range(), parsed.text_range());
+}

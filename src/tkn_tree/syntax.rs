@@ -9,6 +9,39 @@ pub type SyntaxNode = rowan::SyntaxNode<TomlLang>;
 pub type SyntaxToken = rowan::SyntaxToken<TomlLang>;
 pub type SyntaxElement = rowan::NodeOrToken<SyntaxNode, SyntaxToken>;
 
+/// The main trait to go from untyped `SyntaxNode`  to a typed ast. The
+/// conversion itself has zero runtime cost: ast and syntax nodes have exactly
+/// the same representation: a pointer to the tree root and a pointer to the
+/// node itself.
+pub trait AstNode {
+    fn can_cast(kind: TomlKind) -> bool
+    where
+        Self: Sized;
+
+    fn cast(syntax: SyntaxNode) -> Option<Self>
+    where
+        Self: Sized;
+
+    fn syntax(&self) -> &SyntaxNode;
+}
+
+/// Like `AstNode`, but wraps tokens rather than interior nodes.
+pub trait AstToken {
+    fn can_cast(token: TomlKind) -> bool
+    where
+        Self: Sized;
+
+    fn cast(syntax: SyntaxToken) -> Option<Self>
+    where
+        Self: Sized;
+
+    fn syntax(&self) -> &SyntaxToken;
+
+    fn text(&self) -> &str {
+        self.syntax().text()
+    }
+}
+
 pub trait SyntaxNodeExtTrait {
     /// walks tokens collecting each tokens text into a final String.
     fn token_text(&self) -> String;
