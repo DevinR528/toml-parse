@@ -33,22 +33,30 @@ pub struct InTable {
     trailing_comma: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct KvPair {
     comment: Option<String>,
     key: Option<String>,
     val: Value,
 }
 
+impl PartialEq for KvPair {
+    fn eq(&self, other: &KvPair) -> bool {
+        self.key == other.key
+    }
+}
+
+impl Eq for KvPair {}
+
 impl PartialOrd for KvPair {
     fn partial_cmp(&self, other: &KvPair) -> Option<Ordering> {
-        match self.key() {
+        Some(match self.key() {
             Some(key) => match other.key() {
-                Some(k) => key.partial_cmp(k),
-                None => Some(Ordering::Equal),
+                Some(k) => key.cmp(k),
+                None => Ordering::Equal,
             },
-            None => Some(Ordering::Equal),
-        }
+            None => Ordering::Equal,
+        })
     }
 }
 
@@ -194,15 +202,8 @@ impl From<SyntaxNode> for Table {
 
 impl From<SyntaxNode> for Heading {
     fn from(node: SyntaxNode) -> Self {
-        let mut header = node.token_text();
-        if header.contains('[') {
-            header = header.split('[').collect::<Vec<_>>()[1].to_string();
-        }
-        if header.contains(']') {
-            header = header.split(']').collect::<Vec<_>>()[0].to_string();
-        }
+        let header = node.token_text().replace(&['[', ']'] as &[_], "");
         let seg = header.split('.').map(|s| s.into()).collect::<Vec<_>>();
-
         Heading { header, seg }
     }
 }
