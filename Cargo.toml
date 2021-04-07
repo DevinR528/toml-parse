@@ -14,3 +14,5 @@ readme = "README.md"
 chrono = "0.4"
 rowan = "0.10.0"
 muncher = "0.6.1"
+# toml_edit = "0.2.0"
+toml_edit = {path = "../__forks__/toml_edit"}

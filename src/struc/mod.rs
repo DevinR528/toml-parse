@@ -1,7 +1,9 @@
 use std::cmp::Ordering;
 
-pub(self) use super::common::{self, err};
-pub(self) use super::tkn_tree;
+pub(self) use super::{
+    common::{self, err},
+    tkn_tree,
+};
 
 use err::TomlResult;
 use tkn_tree::{parse_it, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken, TomlKind};
@@ -91,12 +93,8 @@ pub enum Value {
 
 impl Eq for Value {}
 
-fn strip_start_end(mut input: String, count: usize) -> String {
-    for _ in 0..count {
-        input.remove(0);
-        input.pop();
-    }
-    input
+fn strip_start_end(input: &str, count: usize) -> String {
+    input[count..input.len() - count].into()
 }
 
 fn integer(s: &str) -> err::TomlResult<Value> {
@@ -156,9 +154,9 @@ impl Value {
     fn node_to_string(node: SyntaxNode) -> Value {
         let mut string = node.token_text();
         if string.starts_with("\"\"\"") {
-            string = strip_start_end(string, 3);
+            string = strip_start_end(&string, 3);
         } else if string.starts_with('\"') || string.starts_with('\'') {
-            string = strip_start_end(string, 1);
+            string = strip_start_end(&string, 1);
         }
         Value::StrLit(string)
     }
@@ -202,8 +200,14 @@ impl From<SyntaxNode> for Table {
 
 impl From<SyntaxNode> for Heading {
     fn from(node: SyntaxNode) -> Self {
-        let header = node.token_text().replace(&['[', ']'] as &[_], "");
+        let mut header = node.token_text().replace('[', "");
+        // This makes sure we remove any whitespace after the `]` and
+        // works for nested headers `[[]]`
+        if header.contains(']') {
+            header = header.split(']').collect::<Vec<_>>()[0].to_string();
+        }
         let seg = header.split('.').map(|s| s.into()).collect::<Vec<_>>();
+
         Heading { header, seg }
     }
 }
@@ -273,16 +277,6 @@ impl From<SyntaxToken> for Value {
             TomlKind::Bool => Value::token_to_bool(node),
             _ => unreachable!("may need to add nodes"),
         }
-    }
-}
-
-impl Toml {
-    /// Create structured toml objects from valid toml `&str`
-    pub fn new(input: &str) -> TomlResult<Self> {
-        let root = parse_it(input)?.syntax();
-        Ok(Self {
-            items: root.children().map(|node| node.into()).collect(),
-        })
     }
 }
 
@@ -364,7 +358,7 @@ impl Table {
     }
     /// Number of segments the header is broken into.
     ///
-    /// ```ignore
+    /// ```text
     /// [this.is.segmented]
     /// key = "value"
     /// ```
@@ -405,15 +399,11 @@ impl Table {
     pub fn combine_comments(&mut self) {
         {
             let cmt_clone = self.clone();
-            let mut zipped = cmt_clone.iter().zip(self.iter_mut().skip(1)).peekable();
+            let zipped = cmt_clone.iter().zip(self.iter_mut().skip(1)).peekable();
 
-            loop {
-                if let Some((left, right)) = zipped.next() {
-                    if let Some(comment) = &left.comment {
-                        right.comment = Some(comment.into());
-                    }
-                } else {
-                    break;
+            for (left, right) in zipped {
+                if let Some(comment) = &left.comment {
+                    right.comment = Some(comment.into());
                 }
             }
         }
@@ -461,6 +451,14 @@ impl InTable {
 }
 
 impl Toml {
+    /// Create structured toml objects from valid toml `&str`
+    pub fn new(input: &str) -> TomlResult<Self> {
+        let root = parse_it(input)?.syntax();
+        Ok(Self {
+            items: root.children().map(|node| node.into()).collect(),
+        })
+    }
+
     /// The number of items found in a parsed toml file.
     pub fn len(&self) -> usize {
         self.items.len()
@@ -541,7 +539,7 @@ impl Toml {
                     match other {
                         Value::Table(other) => {
                             if other.header().contains(heading) {
-                                tab.segments().last().cmp(&other.segments().last())
+                                tab.header().cmp(other.header())
                             } else {
                                 Ordering::Equal
                             }
@@ -561,23 +559,19 @@ impl Toml {
     pub fn combine_comments(&mut self) {
         {
             let cmt_clone = self.clone();
-            let mut zipped = cmt_clone.iter().zip(self.iter_mut().skip(1)).peekable();
+            let zipped = cmt_clone.iter().zip(self.iter_mut().skip(1)).peekable();
 
-            loop {
-                if let Some((left, right)) = zipped.next() {
-                    if let Value::Comment(comment) = left {
-                        match right {
-                            Value::Table(t) => {
-                                t.combine_comments();
-                                t.comment = Some(comment.into())
-                            }
-                            Value::KeyValue(kv) => kv.comment = Some(comment.into()),
-                            Value::Comment(cmt) => cmt.push_str(&format!("{}\n", comment)),
-                            _ => unreachable!("only kv, comments and tables"),
+            for (left, right) in zipped {
+                if let Value::Comment(comment) = left {
+                    match right {
+                        Value::Table(t) => {
+                            t.combine_comments();
+                            t.comment = Some(comment.into())
                         }
+                        Value::KeyValue(kv) => kv.comment = Some(comment.into()),
+                        Value::Comment(cmt) => cmt.push_str(&format!("{}\n", comment)),
+                        _ => unreachable!("only kv, comments and tables"),
                     }
-                } else {
-                    break;
                 }
             }
         }
@@ -628,6 +622,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
 
         assert_eq!(parsed.len(), 6);
     }
+
     #[test]
     fn fend_file_struc() {
         let input = read_to_string("examp/fend.toml").expect("file read failed");
@@ -636,6 +631,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
         assert_eq!(parsed.len(), 6);
         // println!("{:#?}", parsed.len());
     }
+
     #[test]
     fn seg_file_struc() {
         let input = read_to_string("examp/seg.toml").expect("file read failed");
@@ -644,6 +640,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
         assert_eq!(parsed.len(), 2);
         // println!("{:#?}", parsed.len());
     }
+
     #[test]
     fn work_file_struc() {
         let input = read_to_string("examp/work.toml").expect("file read failed");
@@ -716,6 +713,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
         // println!("{:#?}", parsed);
         assert_ne!(parsed, parse_cmp);
     }
+
     #[test]
     fn sort_fend() {
         let input = read_to_string("examp/fend.toml").expect("file read failed");

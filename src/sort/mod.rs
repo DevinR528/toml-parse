@@ -9,8 +9,6 @@ use rowan::{GreenNode, GreenNodeBuilder};
 
 use super::tkn_tree::{SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, TomlKind};
 
-mod sort_rep;
-
 /// Each `Matcher` field when matched to a heading or key token
 /// will be matched with `.contains()`.
 pub struct Matcher<'a> {
