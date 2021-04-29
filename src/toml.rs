@@ -93,31 +93,6 @@ pub fn is_sort_toml(input: &str, matcher: Matcher) -> Document {
         }
     }
 
-    headings.sort();
-
-    for (idx, heading) in headings.into_iter().enumerate() {
-        if let Heading::Complete(segs) = heading {
-            let mut table = &mut Item::None;
-
-            for seg in &segs {
-                table = if let Item::None = table {
-                    &mut toml[seg]
-                } else {
-                    &mut table[seg]
-                };
-            }
-            match &mut table {
-                Item::Table(tab) => {
-                    // tab.set_position(idx);
-                    // count += 1;
-                }
-                Item::ArrayOfTables(arr) => todo!("{:?}", arr),
-                Item::Value(_) => unreachable!("Nope"),
-                Item::None => continue,
-            }
-        }
-    }
-
     toml
 }
 
