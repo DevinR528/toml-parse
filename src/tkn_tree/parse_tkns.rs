@@ -1,17 +1,20 @@
+use chrono::{NaiveDate, NaiveTime};
 use muncher::Muncher;
 use rowan::SmolStr;
 
-use super::err::{ParseTomlError, TomlErrorKind, TomlResult};
-use super::kinds::TomlKind::{self, *};
-
-use chrono::{NaiveDate, NaiveTime};
-
-use super::common::{
-    cmp_tokens, BOOL_END, DATE_CHAR, DATE_END, DATE_LIKE, DATE_TIME, EOL, IDENT_END, INT_END,
-    KEY_END, NUM_END, SEG_END, TIME_CHAR, WHITESPACE,
+use super::{
+    common::{
+        cmp_tokens, BOOL_END, DATE_CHAR, DATE_END, DATE_LIKE, DATE_TIME, EOL, IDENT_END,
+        INT_END, KEY_END, NUM_END, SEG_END, TIME_CHAR, WHITESPACE,
+    },
+    err::{ParseTomlError, TomlErrorKind, TomlResult},
+    kinds::{
+        Element,
+        TomlKind::{self, *},
+        TomlNode, TomlToken,
+    },
+    syntax::Parser,
 };
-use super::kinds::{Element, TomlNode, TomlToken};
-use super::syntax::Parser;
 
 impl From<Element> for (TomlKind, SmolStr) {
     fn from(ele: Element) -> (TomlKind, SmolStr) {
@@ -23,8 +26,9 @@ impl From<Element> for (TomlKind, SmolStr) {
 }
 
 fn is_valid_key(s: &str) -> bool {
-    s.chars()
-        .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' | '-' | '\'' | '"'))
+    s.chars().all(
+        |c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' | '-' | '\'' | '"'),
+    )
 }
 
 fn is_valid_datetime(s: &str) -> TomlResult<bool> {
@@ -47,34 +51,31 @@ fn is_valid_datetime(s: &str) -> TomlResult<bool> {
 
             assert_eq!(date.len(), 3);
 
-            let _ = NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?);
+            let _ =
+                NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?);
             Ok(true)
         }
     } else {
         let date = dt[0].split(DATE_CHAR).collect::<Vec<_>>();
         let time = dt[1].split(TIME_CHAR).collect::<Vec<_>>();
-        let _ =
-            if time.len() > 3 {
-                if s.contains('+') {
-                    // TODO dont include offset for now
-                    NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
-                        .and_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?)
-                } else {
-                    NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
-                        .and_hms_milli(
-                            time[0].parse()?,
-                            time[1].parse()?,
-                            time[2].parse()?,
-                            time[3].parse()?,
-                        )
-                }
+        let _ = if time.len() > 3 {
+            if s.contains('+') {
+                // TODO dont include offset for now
+                NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
+                    .and_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?)
             } else {
-                NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?).and_hms(
-                    time[0].parse()?,
-                    time[1].parse()?,
-                    time[2].parse()?,
-                )
-            };
+                NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
+                    .and_hms_milli(
+                        time[0].parse()?,
+                        time[1].parse()?,
+                        time[2].parse()?,
+                        time[3].parse()?,
+                    )
+            }
+        } else {
+            NaiveDate::from_ymd(date[0].parse()?, date[1].parse()?, date[2].parse()?)
+                .and_hms(time[0].parse()?, time[1].parse()?, time[2].parse()?)
+        };
         Ok(true)
     }
 }
@@ -93,14 +94,7 @@ impl TomlToken {
         let (s, e) = muncher.eat_until_count(|c| !cmp_tokens(c, WHITESPACE));
         // TODO is this more efficient than eat_until to String??
         let text = SmolStr::new(&muncher.text()[s..e]);
-        if e > s {
-            Some(Element::Token(Self {
-                kind: Whitespace,
-                text,
-            }))
-        } else {
-            None
-        }
+        if e > s { Some(Element::Token(Self { kind: Whitespace, text })) } else { None }
     }
 
     fn hash(muncher: &mut Muncher, parser: &mut Parser) {
@@ -135,10 +129,7 @@ impl TomlToken {
     /// in an array may or may not have a comma.
     fn maybe_comma(muncher: &mut Muncher) -> Option<Element> {
         if muncher.eat_comma() {
-            Some(Element::Token(Self {
-                kind: Comma,
-                text: SmolStr::new(","),
-            }))
+            Some(Element::Token(Self { kind: Comma, text: SmolStr::new(",") }))
         } else {
             None
         }
@@ -151,10 +142,7 @@ impl TomlToken {
 
     fn maybe_dot(muncher: &mut Muncher) -> Option<Element> {
         if muncher.eat_dot() {
-            Some(Element::Token(Self {
-                kind: Dot,
-                text: SmolStr::new("."),
-            }))
+            Some(Element::Token(Self { kind: Dot, text: SmolStr::new(".") }))
         } else {
             None
         }
@@ -169,9 +157,7 @@ impl TomlToken {
         assert!(muncher.eat_double_quote());
         assert!(muncher.eat_double_quote());
         assert!(muncher.eat_double_quote());
-        parser
-            .builder
-            .token(TripleQuote.into(), SmolStr::new("\"\"\""));
+        parser.builder.token(TripleQuote.into(), SmolStr::new("\"\"\""));
     }
 
     fn single_quote(muncher: &mut Muncher, parser: &mut Parser) {
@@ -247,11 +233,7 @@ impl TomlToken {
             let msg = "invalid bool".into();
             Err(ParseTomlError::new(
                 msg,
-                TomlErrorKind::UnexpectedToken {
-                    tkn: boolean.into(),
-                    ln,
-                    col,
-                },
+                TomlErrorKind::UnexpectedToken { tkn: boolean.into(), ln, col },
             ))
         }
     }
@@ -269,11 +251,7 @@ impl TomlToken {
             let msg = "invalid integer".into();
             Err(ParseTomlError::new(
                 msg,
-                TomlErrorKind::UnexpectedToken {
-                    tkn: int.into(),
-                    ln,
-                    col,
-                },
+                TomlErrorKind::UnexpectedToken { tkn: int.into(), ln, col },
             ))
         }
     }
@@ -331,11 +309,7 @@ impl TomlNode {
             let msg = "invalid integer".into();
             Err(ParseTomlError::new(
                 msg,
-                TomlErrorKind::UnexpectedToken {
-                    tkn: text.into(),
-                    ln,
-                    col,
-                },
+                TomlErrorKind::UnexpectedToken { tkn: text.into(), ln, col },
             ))
         } else {
             parser.builder.token(Ident.into(), text);
@@ -344,8 +318,8 @@ impl TomlNode {
         }
     }
 
-    /// Builds `Str` node from `Whitespace`, `SingleQuote` and `Ident` token and adds them as
-    /// children.
+    /// Builds `Str` node from `Whitespace`, `SingleQuote` and `Ident` token and adds them
+    /// as children.
     fn single_str(muncher: &mut Muncher, parser: &mut Parser) {
         parser.builder.start_node(Str.into());
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
@@ -360,8 +334,8 @@ impl TomlNode {
         parser.builder.finish_node();
     }
 
-    /// Builds `Str` node from `Whitespace`, `DoubleQuote` and `Ident` token and adds them as
-    /// children.
+    /// Builds `Str` node from `Whitespace`, `DoubleQuote` and `Ident` token and adds them
+    /// as children.
     fn double_str(muncher: &mut Muncher, parser: &mut Parser) {
         parser.builder.start_node(Str.into());
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
@@ -376,8 +350,8 @@ impl TomlNode {
         parser.builder.finish_node();
     }
 
-    /// Builds `Str` node from `Whitespace`, `DoubleQuote` and `Ident` token and adds them as
-    /// children.
+    /// Builds `Str` node from `Whitespace`, `DoubleQuote` and `Ident` token and adds them
+    /// as children.
     fn string(muncher: &mut Muncher, parser: &mut Parser) {
         parser.builder.start_node(Str.into());
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
@@ -433,10 +407,7 @@ impl TomlNode {
             let (col, ln) = muncher.cursor_position();
             let msg = "invalid token in key".into();
             let tkn = format!("{}", text);
-            Err(ParseTomlError::new(
-                msg,
-                TomlErrorKind::UnexpectedToken { tkn, ln, col },
-            ))
+            Err(ParseTomlError::new(msg, TomlErrorKind::UnexpectedToken { tkn, ln, col }))
         }
     }
 
@@ -453,9 +424,8 @@ impl TomlNode {
             Some('{') => TomlNode::inline_table(muncher, parser)?,
             Some(digi) if digi.is_numeric() => {
                 muncher.reset_peek();
-                let raw = muncher
-                    .peek_until(|c| cmp_tokens(c, NUM_END))
-                    .collect::<String>();
+                let raw =
+                    muncher.peek_until(|c| cmp_tokens(c, NUM_END)).collect::<String>();
                 if raw.contains(DATE_LIKE) {
                     TomlNode::date_time(muncher, parser)?
                 } else if raw.contains('.') {
@@ -618,9 +588,8 @@ impl TomlNode {
             Some('{') => TomlNode::inline_table(muncher, parser)?,
             Some(digi) if digi.is_numeric() => {
                 muncher.reset_peek();
-                let raw = muncher
-                    .peek_until(|c| cmp_tokens(c, NUM_END))
-                    .collect::<String>();
+                let raw =
+                    muncher.peek_until(|c| cmp_tokens(c, NUM_END)).collect::<String>();
                 if raw.contains(DATE_LIKE) {
                     TomlNode::date_time(muncher, parser)?
                 } else if raw.contains('.') {
@@ -648,8 +617,8 @@ impl TomlNode {
         Ok(())
     }
 
-    /// Builds `InlineTable` node from `Whitespace` and whatever `KeyValue` nodes are present
-    /// and adds them as children.
+    /// Builds `InlineTable` node from `Whitespace` and whatever `KeyValue` nodes are
+    /// present and adds them as children.
     fn inline_table(muncher: &mut Muncher, parser: &mut Parser) -> TomlResult<()> {
         parser.builder.start_node(InlineTable.into());
         if let Some(ws) = TomlToken::maybe_whitespace(muncher) {
@@ -692,7 +661,8 @@ impl TomlNode {
             if text.contains('.') {
                 let mut txt = text;
                 loop {
-                    // TODO if not in loop `value moved here, in previous iteration of loop` error BOOO
+                    // TODO if not in loop `value moved here, in previous iteration of
+                    // loop` error BOOO
                     let mut in_str = false;
                     let dot_index = |ch: char| -> bool {
                         if ch == '"' && !in_str {

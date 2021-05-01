@@ -1,7 +1,8 @@
 //! Sort the given toml file based on SyntaxElements.
 //!
-//! Using a `Matcher` to specify the tables and values that have items that should be sorted
-//! call `sort_toml_items` then compare the resulting tree using `SyntaxNodeExtTrait::deep_eq`.
+//! Using a `Matcher` to specify the tables and values that have items that should be
+//! sorted call `sort_toml_items` then compare the resulting tree using
+//! `SyntaxNodeExtTrait::deep_eq`.
 
 use std::cmp::Ordering;
 
@@ -25,12 +26,7 @@ fn split_seg_last<S: AsRef<str>>(s: S) -> String {
     let open_close: &[char] = &['[', ']'];
     let heading = s.as_ref();
 
-    heading
-        .replace(open_close, "")
-        .split('.')
-        .last()
-        .map(ToString::to_string)
-        .unwrap()
+    heading.replace(open_close, "").split('.').last().map(ToString::to_string).unwrap()
 }
 
 pub fn sort_toml_items(root: &SyntaxNode, matcher: &Matcher<'_>) -> SyntaxNode {
@@ -42,7 +38,8 @@ pub fn sort_toml_items(root: &SyntaxNode, matcher: &Matcher<'_>) -> SyntaxNode {
             TomlKind::Table => {
                 // for [workspace] members = ...
                 // this is heading and members is key.
-                let (head, key): (Vec<_>, Vec<_>) = matcher.heading_key.iter().cloned().unzip();
+                let (head, key): (Vec<_>, Vec<_>) =
+                    matcher.heading_key.iter().cloned().unzip();
                 let node = ele.as_node().unwrap();
                 if match_table(node, matcher.heading) {
                     add_sorted_table(node, &mut builder)
@@ -207,18 +204,9 @@ fn sort_key_value(kv: &[SyntaxElement]) -> Vec<SyntaxElement> {
 }
 
 fn match_key(node: &SyntaxElement, keys: &[&str]) -> bool {
-    match node
-        .as_node()
-        .map(|n| n.first_child().map(|n| n.kind()))
-        .flatten()
-    {
+    match node.as_node().map(|n| n.first_child().map(|n| n.kind())).flatten() {
         Some(TomlKind::Key) => keys.iter().any(|h| {
-            node.as_node()
-                .unwrap()
-                .first_child()
-                .unwrap()
-                .token_text()
-                .contains(h)
+            node.as_node().unwrap().first_child().unwrap().token_text().contains(h)
                 && node
                     .as_node()
                     .unwrap()
@@ -250,23 +238,31 @@ fn add_table_sort_items(node: &SyntaxNode, builder: &mut GreenNodeBuilder, key: 
                     SyntaxElement::Node(n) => match n.kind() {
                         TomlKind::Value => {
                             builder.start_node(TomlKind::Value.into());
-                            if n.first_child().map(|n| n.kind()) == Some(TomlKind::Array) {
+                            if n.first_child().map(|n| n.kind()) == Some(TomlKind::Array)
+                            {
                                 // the node type like TomlKind::Array
                                 builder.start_node(TomlKind::Array.into());
-                                builder
-                                    .token(TomlKind::OpenBrace.into(), rowan::SmolStr::from("["));
-                                for (end, sorted) in sort_items(n.first_child().unwrap()) {
+                                builder.token(
+                                    TomlKind::OpenBrace.into(),
+                                    rowan::SmolStr::from("["),
+                                );
+                                for (end, sorted) in sort_items(n.first_child().unwrap())
+                                {
                                     add_array_items(sorted, builder, end);
                                 }
-                                builder
-                                    .token(TomlKind::CloseBrace.into(), rowan::SmolStr::from("]"));
+                                builder.token(
+                                    TomlKind::CloseBrace.into(),
+                                    rowan::SmolStr::from("]"),
+                                );
                                 builder.finish_node();
                             }
                             builder.finish_node();
                         }
                         _ => add_node(&n, builder),
                     },
-                    SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+                    SyntaxElement::Token(t) => {
+                        builder.token(t.kind().into(), t.text().clone())
+                    }
                 }
             }
             builder.finish_node();
@@ -353,7 +349,10 @@ fn add_node(node: &SyntaxNode, builder: &mut GreenNodeBuilder) {
 fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder, end: bool) {
     match node {
         SyntaxElement::Node(node) => {
-            if node.kind() == TomlKind::ArrayItem && !end && !node.token_text().contains("\n ") {
+            if node.kind() == TomlKind::ArrayItem
+                && !end
+                && !node.token_text().contains("\n ")
+            {
                 match node
                     .children_with_tokens()
                     .map(|el| el.kind())
@@ -374,7 +373,8 @@ fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder, end: boo
                         builder.finish_node();
                     }
                     [.., _, _] | [_] | [] => {
-                        // these have no comma or space and aren't the last ele so add comma...
+                        // these have no comma or space and aren't the last ele so add
+                        // comma...
                         builder.start_node(node.kind().into());
                         for kid in node.children_with_tokens() {
                             match kid {
@@ -385,7 +385,10 @@ fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder, end: boo
                             }
                         }
                         builder.token(TomlKind::Comma.into(), rowan::SmolStr::from(","));
-                        builder.token(TomlKind::Whitespace.into(), rowan::SmolStr::from(" "));
+                        builder.token(
+                            TomlKind::Whitespace.into(),
+                            rowan::SmolStr::from(" "),
+                        );
                         builder.finish_node();
                     }
                 }
@@ -411,7 +414,9 @@ fn add_array_items(node: SyntaxElement, builder: &mut GreenNodeBuilder, end: boo
                 for kid in node.children_with_tokens() {
                     match kid {
                         SyntaxElement::Node(n) => add_node(&n, builder),
-                        SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+                        SyntaxElement::Token(t) => {
+                            builder.token(t.kind().into(), t.text().clone())
+                        }
                     }
                 }
                 builder.finish_node();
@@ -428,7 +433,9 @@ fn add_element(node: SyntaxElement, builder: &mut GreenNodeBuilder) {
             for kid in node.children_with_tokens() {
                 match kid {
                     SyntaxElement::Node(n) => add_node(&n, builder),
-                    SyntaxElement::Token(t) => builder.token(t.kind().into(), t.text().clone()),
+                    SyntaxElement::Token(t) => {
+                        builder.token(t.kind().into(), t.text().clone())
+                    }
                 }
             }
             builder.finish_node();

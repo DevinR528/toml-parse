@@ -11,8 +11,8 @@ pub use struc::{Heading, InTable, KvPair, Table, Toml, Value};
 pub use tkn_tree::{
     parse_it,
     walk::{walk, walk_tokens, walk_tokens_non_ws},
-    ParsedToml, Parser, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken, Tokenizer,
-    TomlKind,
+    ParsedToml, Parser, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken,
+    Tokenizer, TomlKind,
 };
-pub use toml::is_sort_toml;
+pub use toml::sort_toml;
 pub use toml_fmt::Formatter;

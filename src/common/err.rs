@@ -1,5 +1,7 @@
-use std::io;
-use std::num::{ParseFloatError, ParseIntError};
+use std::{
+    io,
+    num::{ParseFloatError, ParseIntError},
+};
 
 use chrono::format::ParseError as ChronoParseError;
 
@@ -21,10 +23,7 @@ pub struct ParseTomlError {
 
 impl ParseTomlError {
     pub fn new(s: String, t_err: TomlErrorKind) -> ParseTomlError {
-        ParseTomlError {
-            kind: t_err,
-            info: s,
-        }
+        ParseTomlError { kind: t_err, info: s }
     }
 }
 
@@ -66,9 +65,7 @@ impl From<ParseIntError> for ParseTomlError {
 }
 
 impl std::error::Error for ParseTomlError {
-    fn description(&self) -> &str {
-        self.info.as_str()
-    }
+    fn description(&self) -> &str { self.info.as_str() }
 }
 
 impl std::fmt::Debug for ParseTomlError {

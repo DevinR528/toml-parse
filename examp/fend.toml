@@ -11,23 +11,23 @@ categories = ["development-tools::cargo-plugins", "development-tools::debugging"
 edition = "2018"
 readme = "README.md"
 
+[dependencies.beta]
+version = "0.15"
+default-features = false
+features = ["full", "parsing", "printing", "visit-mut"]
+
 [dependencies]
 atty = "0.2"
 prettyprint = "0.6"
 proc-macro2 = "0.4"
-quote = { version = "0.6", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 structopt = "0.2"
 syn-select = "0.1.4"
 tempfile = "3.0"
 termcolor = "1.0"
 toml = "0.5"
+quote = { version = "0.6", default-features = false }
 toolchain_find = "0.1"
-
-[dependencies.beta]
-version = "0.15"
-default-features = false
-features = ["full", "parsing", "printing", "visit-mut"]
 
 #hello
 [dependencies.alpha]
@@ -36,6 +36,40 @@ default-features = false
 features = ["full", "parsing", "printing", "visit-mut"]
 
 [dependencies.syn]
+version = "0.15"
+default-features = false
+features = ["full", "parsing", "printing", "visit-mut"]
+
+[dev-dependencies.cde]
+version = "0.15"
+default-features = false
+features = ["full", "parsing", "printing", "visit-mut"]
+
+[dev-dependencies.bcd.xyz]
+version = "0.15"
+default-features = false
+features = ["full", "parsing", "printing", "visit-mut"]
+
+[build-dependencies.cde]
+version = "0.15"
+default-features = false
+features = ["full", "parsing", "printing", "visit-mut"]
+
+[dev-dependencies.abc]
+version = "0.15"
+default-features = false
+features = ["full", "parsing", "printing", "visit-mut"]
+
+[build-dependencies]
+hello = "0.0.0"
+aaa = "0.0.0"
+
+[build-dependencies.bcd]
+version = "0.15"
+default-features = false
+features = ["full", "parsing", "printing", "visit-mut"]
+
+[build-dependencies.abc]
 version = "0.15"
 default-features = false
 features = ["full", "parsing", "printing", "visit-mut"]

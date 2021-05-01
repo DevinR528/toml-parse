@@ -1,10 +1,11 @@
-use std::cell::Cell;
-use std::fmt;
+use std::{cell::Cell, fmt};
 
 use rowan::Direction;
 
-use super::tkn_tree::{SyntaxElement, SyntaxToken, TomlKind};
-use super::ws::WhiteSpace;
+use super::{
+    tkn_tree::{SyntaxElement, SyntaxToken, TomlKind},
+    ws::WhiteSpace,
+};
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -25,17 +26,11 @@ impl Block {
         Self { tkn, whitespace }
     }
 
-    pub fn kind(&self) -> TomlKind {
-        self.tkn.kind()
-    }
+    pub fn kind(&self) -> TomlKind { self.tkn.kind() }
 
-    pub fn token(&self) -> &SyntaxToken {
-        &self.tkn
-    }
+    pub fn token(&self) -> &SyntaxToken { &self.tkn }
 
-    pub fn whitespace(&self) -> WhiteSpace {
-        self.whitespace.get()
-    }
+    pub fn whitespace(&self) -> WhiteSpace { self.whitespace.get() }
 
     pub fn parents_contain(&self, pat: &str) -> bool {
         let newline = |node: SyntaxElement| -> bool {
@@ -44,17 +39,9 @@ impl Block {
                 _ => false,
             }
         };
-        if self
-            .tkn
-            .parent()
-            .siblings_with_tokens(Direction::Next)
-            .any(newline)
-        {
+        if self.tkn.parent().siblings_with_tokens(Direction::Next).any(newline) {
             return true;
         }
-        self.tkn
-            .parent()
-            .siblings_with_tokens(Direction::Next)
-            .any(newline)
+        self.tkn.parent().siblings_with_tokens(Direction::Next).any(newline)
     }
 }

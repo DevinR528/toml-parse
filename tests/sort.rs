@@ -1,6 +1,8 @@
 use std::fs::read_to_string;
 
-use toml_parse::{parse_it, sort_toml_items, walk, Matcher, SyntaxNode, SyntaxNodeExtTrait};
+use toml_parse::{
+    parse_it, sort_toml_items, walk, Matcher, SyntaxNode, SyntaxNodeExtTrait,
+};
 
 const HEADER: Matcher<'static> = Matcher {
     heading: &["[dependencies]"],
@@ -149,12 +151,10 @@ fn sort_tkns_seg_sort_ok() {
 
 #[test]
 fn sort_clippy() {
-    const HEADERS: [&str; 3] = [
-        "[dependencies]",
-        "[dev-dependencies]",
-        "[build-dependencies]",
-    ];
-    const HEADER_SEG: [&str; 3] = ["dependencies.", "dev-dependencies.", "build-dependencies."];
+    const HEADERS: [&str; 3] =
+        ["[dependencies]", "[dev-dependencies]", "[build-dependencies]"];
+    const HEADER_SEG: [&str; 3] =
+        ["dependencies.", "dev-dependencies.", "build-dependencies."];
     const MATCHER: Matcher<'_> = Matcher {
         heading: &HEADERS,
         segmented: &HEADER_SEG,
@@ -176,13 +176,11 @@ fn sort_clippy() {
 
 #[test]
 fn sort_tkns_ruma() {
-    const HEADERS: [&str; 3] = [
-        "[dependencies]",
-        "[dev-dependencies]",
-        "[build-dependencies]",
-    ];
+    const HEADERS: [&str; 3] =
+        ["[dependencies]", "[dev-dependencies]", "[build-dependencies]"];
 
-    const HEADER_SEG: [&str; 3] = ["dependencies.", "dev-dependencies.", "build-dependencies."];
+    const HEADER_SEG: [&str; 3] =
+        ["dependencies.", "dev-dependencies.", "build-dependencies."];
 
     const MATCHER: Matcher<'_> = Matcher {
         heading: &HEADERS,

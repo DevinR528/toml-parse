@@ -93,7 +93,6 @@ pub enum TomlKind {
 
     // NODES
     // these are nodes
-    //
     Table,
     /// A table heading surrounded by brackets.
     Heading,

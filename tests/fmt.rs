@@ -42,10 +42,7 @@ fn fmt_tables() {
     let file = "[table]\nkey = false [table]\nkey = 1";
     let parsed = parse_it(file).expect("parse failed").syntax();
     let fmt = Formatter::new(&parsed).format();
-    assert_eq!(
-        fmt.to_string(),
-        "[table]\nkey = false\n\n[table]\nkey = 1\n"
-    )
+    assert_eq!(fmt.to_string(), "[table]\nkey = false\n\n[table]\nkey = 1\n")
 }
 #[test]
 fn fmt_seg() {

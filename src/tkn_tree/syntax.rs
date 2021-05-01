@@ -1,9 +1,11 @@
 use rowan::{GreenNode, GreenNodeBuilder};
 
-use super::err::TomlResult;
-use super::kinds::TomlKind::{self, *};
-use super::parse_tkns::Tokenizer;
-use super::walk::{walk, walk_tokens};
+use super::{
+    err::TomlResult,
+    kinds::TomlKind::{self, *},
+    parse_tkns::Tokenizer,
+    walk::{walk, walk_tokens},
+};
 
 pub type SyntaxNode = rowan::SyntaxNode<TomlLang>;
 pub type SyntaxToken = rowan::SyntaxToken<TomlLang>;
@@ -37,9 +39,7 @@ pub trait AstToken {
 
     fn syntax(&self) -> &SyntaxToken;
 
-    fn text(&self) -> &str {
-        self.syntax().text()
-    }
+    fn text(&self) -> &str { self.syntax().text() }
 }
 
 pub trait SyntaxNodeExtTrait {
@@ -53,9 +53,7 @@ pub trait SyntaxNodeExtTrait {
 }
 
 impl From<TomlKind> for rowan::SyntaxKind {
-    fn from(kind: TomlKind) -> Self {
-        Self(kind as u16)
-    }
+    fn from(kind: TomlKind) -> Self { Self(kind as u16) }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -66,9 +64,7 @@ impl rowan::Language for TomlLang {
         assert!(raw.0 <= Root as u16);
         unsafe { std::mem::transmute::<u16, TomlKind>(raw.0) }
     }
-    fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
-        kind.into()
-    }
+    fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind { kind.into() }
 }
 
 impl SyntaxNodeExtTrait for SyntaxNode {
@@ -107,9 +103,7 @@ pub struct ParsedToml {
 }
 
 impl ParsedToml {
-    pub fn syntax(&self) -> SyntaxNode {
-        SyntaxNode::new_root(self.green.clone())
-    }
+    pub fn syntax(&self) -> SyntaxNode { SyntaxNode::new_root(self.green.clone()) }
 }
 
 pub struct Parser {
@@ -118,17 +112,11 @@ pub struct Parser {
 }
 
 impl Default for Parser {
-    fn default() -> Self {
-        Parser::new()
-    }
+    fn default() -> Self { Parser::new() }
 }
 
 impl Parser {
-    pub fn new() -> Parser {
-        Self {
-            builder: GreenNodeBuilder::new(),
-        }
-    }
+    pub fn new() -> Parser { Self { builder: GreenNodeBuilder::new() } }
     pub fn parse(self) -> TomlResult<ParsedToml> {
         let green: GreenNode = self.builder.finish();
         // Construct a `SyntaxNode` from `GreenNode`,

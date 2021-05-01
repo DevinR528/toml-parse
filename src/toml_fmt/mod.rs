@@ -8,8 +8,8 @@ mod ws;
 
 use block::Block;
 use rules::{
-    indent_after_comma, indent_after_open_brace, lf_after_heading, lf_after_table, none_around_dot,
-    space_around_eq, space_lf_after_array_open, space_lf_after_comma,
+    indent_after_comma, indent_after_open_brace, lf_after_heading, lf_after_table,
+    none_around_dot, space_around_eq, space_lf_after_array_open, space_lf_after_comma,
     space_lf_after_inline_table_open, space_lf_before_array_close,
     space_lf_before_inline_table_close,
 };
@@ -52,12 +52,7 @@ impl Formatter {
                 }
             }
         }
-        self.formatted = self
-            .blocks
-            .clone()
-            .into_iter()
-            .map(|b| b.to_string())
-            .collect();
+        self.formatted = self.blocks.clone().into_iter().map(|b| b.to_string()).collect();
 
         if !self.formatted.ends_with('\n') {
             self.formatted.push('\n')
@@ -69,10 +64,7 @@ impl fmt::Debug for Formatter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Formatter")
             .field("blocks", &self.blocks)
-            .field(
-                "rules",
-                &self.rules.iter().map(|(k, _fn)| k).collect::<Vec<_>>(),
-            )
+            .field("rules", &self.rules.iter().map(|(k, _fn)| k).collect::<Vec<_>>())
             .field("formatted", &self.formatted)
             .finish()
     }
@@ -98,31 +90,16 @@ pub fn formatter() -> Vec<(TomlKind, RuleFn)> {
         // space or newline after comma in array or inline table
         (TomlKind::Comma, Box::new(space_lf_after_comma) as RuleFn),
         // space or newline after array open brace
-        (
-            TomlKind::OpenCurly,
-            Box::new(space_lf_after_inline_table_open) as RuleFn,
-        ),
+        (TomlKind::OpenCurly, Box::new(space_lf_after_inline_table_open) as RuleFn),
         // space or newline before closing curly brace of inline table
-        (
-            TomlKind::CloseCurly,
-            Box::new(space_lf_before_inline_table_close) as RuleFn,
-        ),
+        (TomlKind::CloseCurly, Box::new(space_lf_before_inline_table_close) as RuleFn),
         // space or newline after open brace of array
-        (
-            TomlKind::OpenBrace,
-            Box::new(space_lf_after_array_open) as RuleFn,
-        ),
+        (TomlKind::OpenBrace, Box::new(space_lf_after_array_open) as RuleFn),
         // space or newline before closing brace of array
-        (
-            TomlKind::CloseBrace,
-            Box::new(space_lf_before_array_close) as RuleFn,
-        ),
+        (TomlKind::CloseBrace, Box::new(space_lf_before_array_close) as RuleFn),
         // INDENT
         // indent after open brace if siblings are indented
-        (
-            TomlKind::OpenBrace,
-            Box::new(indent_after_open_brace) as RuleFn,
-        ),
+        (TomlKind::OpenBrace, Box::new(indent_after_open_brace) as RuleFn),
         // indent after comma if siblings are indented
         (TomlKind::Comma, Box::new(indent_after_comma) as RuleFn),
     ]

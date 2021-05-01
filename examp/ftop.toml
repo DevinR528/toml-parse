@@ -9,20 +9,14 @@ b = "0"
 
 [dependencies.alpha]
 version = "0.15"
-default-features = false
-features = ["full", "parsing", "printing", "visit-mut"]
 
 [dependencies.beta]
-version = "15"
 # oh yea
-default-features = false
-features = ["full", "parsing", "printing", "visit-mut"]
+version = "15"
 
 # oh yea
 [dependencies.syn]
 version = "0.1"
-default-features = false
-features = ["full", "parsing", "printing", "visit-mut"]
 
 # oh yea
 [workspace]

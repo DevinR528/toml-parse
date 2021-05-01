@@ -1,12 +1,14 @@
 use std::cmp::Ordering;
 
+use err::TomlResult;
+use tkn_tree::{
+    parse_it, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken, TomlKind,
+};
+
 pub(self) use super::{
     common::{self, err},
     tkn_tree,
 };
-
-use err::TomlResult;
-use tkn_tree::{parse_it, SyntaxElement, SyntaxNode, SyntaxNodeExtTrait, SyntaxToken, TomlKind};
 
 mod date;
 use date::TomlDate;
@@ -43,9 +45,7 @@ pub struct KvPair {
 }
 
 impl PartialEq for KvPair {
-    fn eq(&self, other: &KvPair) -> bool {
-        self.key == other.key
-    }
+    fn eq(&self, other: &KvPair) -> bool { self.key == other.key }
 }
 
 impl Eq for KvPair {}
@@ -117,13 +117,9 @@ fn integer(s: &str) -> err::TomlResult<Value> {
     }
 }
 
-fn ws(node: &SyntaxNode) -> bool {
-    node.kind() != TomlKind::KeyValue
-}
+fn ws(node: &SyntaxNode) -> bool { node.kind() != TomlKind::KeyValue }
 
-fn ws_ele(node: &SyntaxElement) -> bool {
-    node.kind() != TomlKind::KeyValue
-}
+fn ws_ele(node: &SyntaxElement) -> bool { node.kind() != TomlKind::KeyValue }
 
 fn first_child_not_ws(node: SyntaxNode) -> Option<SyntaxElement> {
     node.children_with_tokens().find(ws_ele)
@@ -148,9 +144,7 @@ impl Value {
     fn node_to_array_item(node: SyntaxNode) -> Value {
         node.first_child().map(|n| n.into()).unwrap()
     }
-    fn node_to_comment(node: SyntaxNode) -> Value {
-        Value::Comment(node.token_text())
-    }
+    fn node_to_comment(node: SyntaxNode) -> Value { Value::Comment(node.token_text()) }
     fn node_to_string(node: SyntaxNode) -> Value {
         let mut string = node.token_text();
         if string.starts_with("\"\"\"") {
@@ -178,11 +172,7 @@ impl Value {
     }
     fn token_to_bool(tkn: SyntaxToken) -> Value {
         let raw_bool = tkn.text();
-        if raw_bool == "true" {
-            Value::Bool(true)
-        } else {
-            Value::Bool(false)
-        }
+        if raw_bool == "true" { Value::Bool(true) } else { Value::Bool(false) }
     }
 }
 
@@ -190,11 +180,7 @@ impl From<SyntaxNode> for Table {
     fn from(node: SyntaxNode) -> Self {
         let header = node.first_child().map(|n| n.into()).unwrap();
         let pairs = node.children().skip(1).map(|n| n.into()).collect();
-        Table {
-            header,
-            pairs,
-            comment: None,
-        }
+        Table { header, pairs, comment: None }
     }
 }
 
@@ -216,10 +202,7 @@ impl From<SyntaxNode> for InTable {
     fn from(node: SyntaxNode) -> InTable {
         let pairs = node.children().map(|n| n.into()).collect();
         let trailing_comma = false;
-        InTable {
-            pairs,
-            trailing_comma,
-        }
+        InTable { pairs, trailing_comma }
     }
 }
 
@@ -242,11 +225,7 @@ impl From<SyntaxNode> for KvPair {
             .map(|n| n.into())
             .unwrap_or(Value::Eof);
 
-        KvPair {
-            key,
-            val,
-            comment: None,
-        }
+        KvPair { key, val, comment: None }
     }
 }
 
@@ -332,43 +311,27 @@ impl KvPair {
         self.key.as_ref().map(|k| k == key) == Some(true)
     }
 
-    pub fn key(&self) -> Option<&str> {
-        self.key.as_deref()
-    }
-    pub fn value(&self) -> &Value {
-        &self.val
-    }
-    pub fn value_mut(&mut self) -> &mut Value {
-        &mut self.val
-    }
+    pub fn key(&self) -> Option<&str> { self.key.as_deref() }
+    pub fn value(&self) -> &Value { &self.val }
+    pub fn value_mut(&mut self) -> &mut Value { &mut self.val }
 }
 
 impl Table {
     /// The heading of the given `Table`.
-    pub fn header(&self) -> &str {
-        &self.header.header
-    }
+    pub fn header(&self) -> &str { &self.header.header }
     /// The segments of the heading of a given `Table`.
-    pub fn segments(&self) -> &[String] {
-        &self.header.seg
-    }
+    pub fn segments(&self) -> &[String] { &self.header.seg }
     /// The number of items in this `Table`.
-    pub fn item_len(&self) -> usize {
-        self.pairs.len()
-    }
+    pub fn item_len(&self) -> usize { self.pairs.len() }
     /// Number of segments the header is broken into.
     ///
     /// ```text
     /// [this.is.segmented]
     /// key = "value"
     /// ```
-    pub fn seg_len(&self) -> usize {
-        self.header.seg.len()
-    }
+    pub fn seg_len(&self) -> usize { self.header.seg.len() }
     /// The `KvPair` this table holds as a slice.
-    pub fn items(&self) -> &[KvPair] {
-        &self.pairs
-    }
+    pub fn items(&self) -> &[KvPair] { &self.pairs }
 
     /// Returns `KvPair` that matches given key.
     pub fn get_key_value(&self, key: &str) -> Option<&KvPair> {
@@ -376,10 +339,7 @@ impl Table {
     }
     /// Returns `Value` that matches given key.
     pub fn get(&self, key: &str) -> Option<&Value> {
-        self.pairs
-            .iter()
-            .find(|pair| pair.key_match(key))
-            .map(|pair| pair.value())
+        self.pairs.iter().find(|pair| pair.key_match(key)).map(|pair| pair.value())
     }
 
     /// Returns `Value` that matches given key.
@@ -390,9 +350,7 @@ impl Table {
             .map(|pair| pair.value_mut())
     }
 
-    pub fn sort(&mut self) {
-        self.pairs.sort()
-    }
+    pub fn sort(&mut self) { self.pairs.sort() }
 
     /// Merges `Value::Comment` with `Value` below it.
     #[allow(clippy::while_let_loop)]
@@ -407,13 +365,10 @@ impl Table {
                 }
             }
         }
-        self.pairs
-            .retain(|kv| !(kv.key().is_none() && kv.value() == &Value::None))
+        self.pairs.retain(|kv| !(kv.key().is_none() && kv.value() == &Value::None))
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &KvPair> {
-        self.pairs.iter()
-    }
+    pub fn iter(&self) -> impl Iterator<Item = &KvPair> { self.pairs.iter() }
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut KvPair> {
         self.pairs.iter_mut()
     }
@@ -421,13 +376,9 @@ impl Table {
 
 impl InTable {
     /// Number of `KvPair's in given inline table.
-    pub fn len(&self) -> usize {
-        self.pairs.len()
-    }
+    pub fn len(&self) -> usize { self.pairs.len() }
     /// Returns true if `InTable` has no `KvPair`s.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
     /// Returns the `Value` that matches given key.
     ///
     /// # Example
@@ -443,10 +394,7 @@ impl InTable {
     /// }
     /// ```
     pub fn get(&self, key: &str) -> Option<&Value> {
-        self.pairs
-            .iter()
-            .find(|pair| pair.key_match(key))
-            .map(|pair| pair.value())
+        self.pairs.iter().find(|pair| pair.key_match(key)).map(|pair| pair.value())
     }
 }
 
@@ -454,19 +402,13 @@ impl Toml {
     /// Create structured toml objects from valid toml `&str`
     pub fn new(input: &str) -> TomlResult<Self> {
         let root = parse_it(input)?.syntax();
-        Ok(Self {
-            items: root.children().map(|node| node.into()).collect(),
-        })
+        Ok(Self { items: root.children().map(|node| node.into()).collect() })
     }
 
     /// The number of items found in a parsed toml file.
-    pub fn len(&self) -> usize {
-        self.items.len()
-    }
+    pub fn len(&self) -> usize { self.items.len() }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
 
     /// Returns a reference to the `Table` that matches `heading`.
     pub fn get_table(&self, heading: &str) -> Option<&Table> {
@@ -475,13 +417,7 @@ impl Toml {
                 Value::Table(tab) => tab.header() == heading,
                 _ => false,
             })
-            .map(|table| {
-                if let Value::Table(tab) = table {
-                    Some(tab)
-                } else {
-                    None
-                }
-            })
+            .map(|table| if let Value::Table(tab) = table { Some(tab) } else { None })
             .flatten()
     }
 
@@ -492,13 +428,7 @@ impl Toml {
                 Value::Table(tab) => tab.header() == heading,
                 _ => false,
             })
-            .map(|table| {
-                if let Value::Table(tab) = table {
-                    Some(tab)
-                } else {
-                    None
-                }
-            })
+            .map(|table| if let Value::Table(tab) = table { Some(tab) } else { None })
             .flatten()
     }
 
@@ -509,13 +439,9 @@ impl Toml {
                 Value::Table(tab) => tab.header().contains(heading),
                 _ => false,
             })
-            .flat_map(|table| {
-                if let Value::Table(tab) = table {
-                    Some(tab)
-                } else {
-                    None
-                }
-            })
+            .flat_map(
+                |table| if let Value::Table(tab) = table { Some(tab) } else { None },
+            )
             .collect()
     }
 
@@ -578,9 +504,7 @@ impl Toml {
         self.items.retain(|val| !matches!(val, Value::Comment(_)))
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Value> {
-        self.items.iter()
-    }
+    pub fn iter(&self) -> impl Iterator<Item = &Value> { self.items.iter() }
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Value> {
         self.items.iter_mut()
     }
@@ -588,8 +512,9 @@ impl Toml {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::fs::read_to_string;
+
+    use super::*;
 
     #[test]
     fn comment() {
@@ -645,11 +570,7 @@ inline-table = { date = 1988-02-03T10:32:10, }
     fn work_file_struc() {
         let input = read_to_string("examp/work.toml").expect("file read failed");
         let parsed = Toml::new(&input).unwrap();
-        let members = parsed
-            .get_table("workspace")
-            .unwrap()
-            .get("members")
-            .unwrap();
+        let members = parsed.get_table("workspace").unwrap().get("members").unwrap();
 
         assert_eq!(members.as_array().unwrap().len(), 4);
     }
@@ -750,11 +671,8 @@ inline-table = { date = 1988-02-03T10:32:10, }
     fn sort_work() {
         let input = read_to_string("examp/work.toml").expect("file read failed");
         let mut parsed = Toml::new(&input).unwrap();
-        let members = parsed
-            .get_table_mut("workspace")
-            .unwrap()
-            .get_mut("members")
-            .unwrap();
+        let members =
+            parsed.get_table_mut("workspace").unwrap().get_mut("members").unwrap();
         let mut mem_cmp = members.clone();
         assert_eq!(*members, mem_cmp);
         members.sort_string_array();
