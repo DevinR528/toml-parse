@@ -64,6 +64,16 @@ inline-table = { date = 1988-02-03T10:32:10, }
 }
 
 #[test]
+fn parse_table_with_string() {
+    let file = r#"[target.'cfg(target_arch = "wasm32")'.dependencies]
+serde_json = "1.0"
+"#;
+    let parsed = parse_it(file).expect("parse failed");
+    // println!("{:#?}", parsed.syntax());
+    assert_eq!(parsed.syntax().token_text(), file)
+}
+
+#[test]
 fn parse_ftop_file() {
     let input = read_to_string("examp/ftop.toml").expect("file read failed");
     let parsed = parse_it(&input).expect("parse failed");
